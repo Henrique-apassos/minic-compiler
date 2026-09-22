@@ -1,0 +1,19 @@
+name = "minic-compiler"
+defaultTargets = ["minic-compiler"]
+
+[[lean_lib]]
+name = "Scanner"
+
+[[lean_lib]]
+name = "Automata"
+roots = [
+  "Automata.Common",
+  "Automata.DFA",
+  "Automata.NFA",
+  "Automata.Simulation",
+  "Automata.SimulationTactics"
+]
+
+[[lean_exe]]
+name = "minic-compiler"
+root = "Main"
