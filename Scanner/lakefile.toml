@@ -1,0 +1,10 @@
+name = "Scanner"
+version = "0.1.0"
+defaultTargets = ["scanner"]
+
+[[lean_lib]]
+name = "Scanner"
+
+[[lean_exe]]
+name = "scanner"
+root = "Main"
