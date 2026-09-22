@@ -1,7 +1,0 @@
-name = "minic-compiler"
-version = "0.1.0"
-defaultTargets = ["minic-compiler"]
-
-[[lean_exe]]
-name = "minic-compiler"
-root = "Main"
