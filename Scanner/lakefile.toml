@@ -5,6 +5,10 @@ defaultTargets = ["scanner"]
 [[lean_lib]]
 name = "Scanner"
 
+[[lean_lib]]
+name = "Automata"
+
 [[lean_exe]]
 name = "scanner"
 root = "Main"
+
