@@ -86,3 +86,32 @@ def buildThompson (r : Regex) : BuilderM RawNFA := do
 def regexToRawNFA (r : Regex) : RawNFA :=
   let (nfa, _) := (buildThompson r).run 0
   nfa
+
+-- ══════════════════════════════════════════════
+-- TESTES
+-- ══════════════════════════════════════════════
+
+-- Teste 1: Reconhecer um único literal "a"
+#eval regexToRawNFA (Regex.literal "a")
+
+-- Teste 2: Concatenação "ab"
+#eval regexToRawNFA (Regex.concat (Regex.literal "a") (Regex.literal "b"))
+
+-- Teste 3: União "a|b"
+#eval regexToRawNFA (Regex.union (Regex.literal "a") (Regex.literal "b"))
+
+-- Teste 4: Fecho de Kleene "a*"
+#eval regexToRawNFA (Regex.star (Regex.literal "a"))
+
+-- Teste 5: Expressão composta "a(b|c)*"
+def testeRegexABC : Regex :=
+  Regex.concat
+    (Regex.literal "a")
+    (Regex.star
+      (Regex.union
+        (Regex.literal "b")
+        (Regex.literal "c")
+      )
+    )
+
+#eval regexToRawNFA testeRegexABC
