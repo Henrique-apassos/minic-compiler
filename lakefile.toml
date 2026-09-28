@@ -11,7 +11,8 @@ roots = [
   "Automata.DFA",
   "Automata.NFA",
   "Automata.Simulation",
-  "Automata.SimulationTactics"
+  "Automata.SimulationTactics",
+  "Automata.Thompson",
 ]
 
 [[lean_exe]]
