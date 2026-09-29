@@ -30,7 +30,7 @@ inductive TokenKind where
   | not     --"!"
 
   -- Pontuação e atribuição
-  | assing --"="
+  | assign --"="
   | lparen | rparen --"(" e ")"
   | lbrace | rbrace --"{" e "}"
   | lbracket | rbracket --"[" e "]"
@@ -91,3 +91,56 @@ def alphaRegex : Regex :=
 def intRegex : Regex := regexPlus digitRegex
 def floatRegex : Regex := Regex.concat intRegex (Regex.concat (Regex.literal ".") intRegex)
 def idRegex : Regex := Regex.concat alphaRegex (Regex.star (Regex.union alphaRegex digitRegex))
+
+-- ══════════════════════════════════════════════
+-- 5. REGRAS LÉXICAS DO MINIC
+-- ══════════════════════════════════════════════
+-- A ORDEM É CRÍTICA! Num scanner real, símbolos compostos ("==")
+-- devem ser avaliados antes de símbolos simples ("=").
+
+def lexicalRules : List (Regex × TokenKind) := [
+  -- Palavras-chave
+  (regexFromString "int", TokenKind.kwInt),
+  (regexFromString "float", TokenKind.kwFloat),
+  (regexFromString "bool", TokenKind.kwBool),
+  (regexFromString "str", TokenKind.kwStr),
+  (regexFromString "void", TokenKind.kwVoid),
+  (regexFromString "if", TokenKind.kwIf),
+  (regexFromString "else", TokenKind.kwElse),
+  (regexFromString "while", TokenKind.kwWhile),
+  (regexFromString "return", TokenKind.kwReturn),
+  (regexFromString "true", TokenKind.kwTrue),
+  (regexFromString "false", TokenKind.kwFalse),
+  (regexFromString "and", TokenKind.kwAnd),
+  (regexFromString "or", TokenKind.kwOr),
+
+  -- Operadores Duplos (Comparação)
+  (regexFromString "==", TokenKind.eq),
+  (regexFromString "!=", TokenKind.neq),
+  (regexFromString "<=", TokenKind.le),
+  (regexFromString ">=", TokenKind.ge),
+
+  -- Operadores Simples e Pontuação
+  (regexFromString "<", TokenKind.lt),
+  (regexFromString ">", TokenKind.gt),
+  (regexFromString "=", TokenKind.assign),
+  (regexFromString "+", TokenKind.plus),
+  (regexFromString "-", TokenKind.minus),
+  (regexFromString "*", TokenKind.times),
+  (regexFromString "/", TokenKind.div),
+  (regexFromString "!", TokenKind.not),
+  (regexFromString "(", TokenKind.lparen),
+  (regexFromString ")", TokenKind.rparen),
+  (regexFromString "{", TokenKind.lbrace),
+  (regexFromString "}", TokenKind.rbrace),
+  (regexFromString "[", TokenKind.lbracket),
+  (regexFromString "]", TokenKind.rbracket),
+  (regexFromString ",", TokenKind.comma),
+  (regexFromString ";", TokenKind.semi),
+
+  -- Literais Complexos (Identificadores e Números)
+  (floatRegex, TokenKind.numFloat),
+  (intRegex, TokenKind.numInt),
+  (idRegex, TokenKind.id)
+
+]
