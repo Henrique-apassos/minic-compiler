@@ -13,6 +13,7 @@ roots = [
   "Automata.Simulation",
   "Automata.SimulationTactics",
   "Automata.Thompson",
+  "Automata.Subset"
 ]
 
 [[lean_exe]]
