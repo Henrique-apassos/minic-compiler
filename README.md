@@ -2,11 +2,19 @@
 
 Compilador para **Mini-C**, um subconjunto da linguagem C, escrito em **Lean 4**.
 
-Até agora o projeto tem a **análise léxica (scanner)**. Ela foi construída do zero sobre uma pequena biblioteca de autômatos: as regras léxicas são expressões regulares, convertidas em NFA pelo algoritmo de Thompson e depois em DFA pela construção de subconjuntos. Por fim, o DFA é executado com *maximal munch* sobre o código-fonte.
+O projeto tem a **análise léxica (scanner)** e o **gerador de parser LL(1)** com seu motor. O scanner foi construído do zero sobre uma pequena biblioteca de autômatos: as regras léxicas são expressões regulares, convertidas em NFA pelo algoritmo de Thompson e depois em DFA pela construção de subconjuntos. Por fim, o DFA é executado com *maximal munch* sobre o código-fonte.
 
 ```
 Regras (Regex × TokenKind) ──Thompson──▶ NFA combinado ──Subset construction──▶ DFA ──maximal munch──▶ Tokens
 ```
+
+O parser segue o mesmo desenho: a gramática é escrita como dado, o gerador calcula nulável, FIRST e FOLLOW por ponto fixo e monta a tabela LL(1), e um motor genérico com pilha explícita lê os tokens e devolve a árvore de derivação.
+
+```
+Gramática (produções) ──ponto fixo──▶ nulável/FIRST/FOLLOW ──▶ tabela LL(1) ──motor com pilha──▶ Árvore de derivação
+```
+
+A conversão da árvore de derivação para a AST, e a ligação no `Main.lean`, são a próxima etapa.
 
 ## Requisitos
 
@@ -24,6 +32,12 @@ lake exe minic-compiler
 
 O executável roda o scanner sobre um programa de exemplo definido em `Main.lean` e imprime cada token no formato `linha:coluna  tipo  "lexema"`.
 
+```bash
+lake test
+```
+
+Roda os testes do gerador de parser (`Parser/Tests.lean`): gramática, FIRST/FOLLOW, tabela, motor e programas miniC aceitos e rejeitados. Sai com erro se algum falhar.
+
 ## Estrutura do projeto
 
 ```
@@ -33,6 +47,15 @@ O executável roda o scanner sobre um programa de exemplo definido em `Main.lean
 ├── Scanner/
 │   ├── Basic.lean             # Tipos de token, classes de caracteres e regras léxicas
 │   └── Lexer.lean             # NFA combinado, DFA do scanner e o laço de varredura
+├── Parser.lean                # Raiz da biblioteca Parser
+├── Parser/
+│   ├── Tree.lean              # ParseTree: o contrato entre o motor e a conversão para AST
+│   ├── Grammar.lean           # Sym, Production, Grammar e a gramática LL(1) do miniC
+│   ├── First.lean             # Nulável, FIRST e FOLLOW por ponto fixo
+│   ├── Table.lean             # Tabela LL(1) com detecção de conflitos
+│   ├── Engine.lean            # Motor preditivo com pilha explícita e mensagens de erro
+│   └── Tests.lean             # Testes (lake test)
+├── docs/DECISOES.md           # Decisões do projeto e de onde vieram
 ├── Automata/
 │   ├── Common.lean            # Tipos base (State, Symbol, Transition) e predicados
 │   ├── NFA.lean               # Estrutura NFA com invariantes provadas + deltaNFA
@@ -74,7 +97,22 @@ O executável roda o scanner sobre um programa de exemplo definido em `Main.lean
   - `longestMatch` implementa o **maximal munch**: avança o DFA o máximo possível e volta ao último estado de aceitação. Por isso `intx` vira `id` e `<=` vira `le`, não `lt` + `assign`.
   - `scan` ignora espaços em branco e comentários de linha (`//`) e conta linha e coluna. Um caractere não reconhecido gera um token `error` e a varredura continua; o último token é sempre `eof`.
 
-### Exemplo
+### 3. Gerador de parser LL(1) (`Parser/`)
+
+- **Gramática como dado** (`Grammar.lean`). A gramática do miniC, extraída do parser Rust de referência e reescrita para LL(1): laços viram caudas recursivas à direita com ε (`AddTail`, `MulTail`...) e prefixos comuns são fatorados (`ID IdStmt`, `ID AtomRest`). São **42 não-terminais e 85 produções**. A ordem das alternativas faz parte do contrato com a conversão para AST.
+- **Nulável, FIRST e FOLLOW** (`First.lean`). Calculados por ponto fixo, com um combustível limitado que basta (sem `partial`).
+- **Tabela LL(1)** (`Table.lean`). PREDICT(A → α) = FIRST(α), mais FOLLOW(A) se α é nulável. Se duas produções caem na mesma célula, a gramática é recusada com a lista de conflitos. A do miniC tem **0 conflitos** e 313 células.
+- **Motor** (`Engine.lean`). Uma pilha de trabalho (símbolos e marcadores de "fechar nó") e uma pilha de valores. Não há retrocesso: cada passo olha só o topo e o token atual. Para no primeiro erro, com `linha:coluna`, o que foi encontrado e o que era esperado:
+
+  ```
+  1:25: encontrei ';', esperava 'true', 'false', identificador, número inteiro, ...
+  ```
+
+- **Árvore de derivação** (`Tree.lean`). `leaf tok` guarda o token inteiro; `node nt alt kids` guarda o não-terminal, a alternativa usada (0 = primeira) e os filhos (ε = sem filhos). Há uma árvore de exemplo feita à mão (`ParseTree.Example.subChain`, de `a - b - c`) que os testes garantem ser idêntica à do motor.
+- **Pontos de entrada**: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`.
+- **Testes** (`Tests.lean`, `lake test`). 64 verificações: a gramática de livro (E/T/F) contra as respostas conhecidas, uma gramática com conflito de propósito, e programas miniC aceitos e rejeitados com a posição do erro.
+
+### Exemplo do scanner
 
 Entrada (em `Main.lean`):
 
@@ -111,4 +149,8 @@ Saída (trecho):
 - Comentários de bloco (`/* ... */`) não são tratados.
 - `epsilonClosure`, `subsetLoop` e `scanLoop` são `partial`, ou seja, não têm prova de terminação.
 - Não há prova formal de que o DFA gerado é equivalente ao NFA ou à regex. As estruturas verificadas `NFA`/`DFA` e o pipeline `Raw*` ainda não estão conectados.
-- Próximas fases do compilador: **análise sintática** (parser e AST do Mini-C), análise semântica e geração de código.
+- O motor de parser é `partial`; o ponto fixo de FIRST/FOLLOW não é.
+- Ainda falta a **AST** e a conversão árvore de derivação → AST, e ligar o parser no `Main.lean`.
+- Próximas fases do compilador: análise semântica (tipos), interpretador e geração de código.
+
+As decisões de projeto, com origem e o que ainda precisa ser confirmado, estão em [docs/DECISOES.md](docs/DECISOES.md).
