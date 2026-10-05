@@ -1,5 +1,5 @@
 name = "minic-compiler"
-defaultTargets = ["minic-compiler"]
+defaultTargets = ["minic-compiler", "Parser", "ParserTests"]
 
 [[lean_lib]]
 name = "Scanner"
@@ -15,6 +15,13 @@ roots = [
   "Automata.Thompson",
   "Automata.Subset"
 ]
+
+[[lean_lib]]
+name = "Parser"
+
+[[lean_lib]]
+name = "ParserTests"
+roots = ["Parser.Tests"]
 
 [[lean_exe]]
 name = "minic-compiler"
