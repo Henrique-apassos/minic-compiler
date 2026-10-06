@@ -1,19 +1,25 @@
-import Scanner
-import Automata.DFA
+import Parser
 
 def sample : String :=
 "int fatorial(int n) {
   // comentário
-  if (n <= 1) { return 1; }
+  if n <= 1 { return 1; }
   float x = 3.14;
-  int intx = 42;
-  return n * fatorial(n - 1);
-}
-a == b != c @"
+  int[] v = [1, 2, 3];
+  v[0] = -v[1] * 2;
+  return n * fatorial(n - 1 - 0);
+}"
 
-def main : IO Unit := do
-  IO.println "Compilador Mini-C pronto para execução."
-  let dfa := buildLexDFA lexicalRules
-  IO.println s!"Estados do DFA: {dfa.trans.size} transições, {dfa.accepting.size} estados de aceitação"
-  for t in scan dfa sample do
-    IO.println s!"{t.line}:{t.column}\t{repr t.kind}\t{t.lexeme.quote}"
+/-- `lake exe minic-compiler [arquivo.c]`: sem arquivo, usa o programa de exemplo.
+    Texto → tokens → árvore de derivação → AST, e imprime a AST (ou o erro com linha:coluna). -/
+def main (args : List String) : IO UInt32 := do
+  let src ← match args with
+    | path :: _ => IO.FS.readFile path
+    | [] => pure sample
+  match parseProgram src with
+  | .ok prog =>
+    IO.println prog.show
+    return 0
+  | .error msg =>
+    IO.eprintln s!"erro: {msg}"
+    return 1

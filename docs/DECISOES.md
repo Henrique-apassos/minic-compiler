@@ -6,9 +6,9 @@ Legenda de origem:
 - **Professor**: pedido do professor (relatado no grupo).
 - **Grupo**: decidido no chat do grupo.
 - **Proposta**: sugestão do roteiro ou desta implementação. O grupo pode trocar.
-- **Implementação**: escolha técnica feita ao escrever o código da branch `dev/parser-generator`.
+- **Implementação**: escolha técnica feita ao escrever o código (branches `dev/parser-generator` e `dev/ast`).
 
-Atualizado em 5 de outubro de 2026.
+Atualizado em 6 de outubro de 2026.
 
 ## Escopo e organização
 
@@ -71,6 +71,22 @@ Atualizado em 5 de outubro de 2026.
 | 35 | Erro: **para no primeiro erro** (sem recuperação). A mensagem é **em português**, com linha:coluna, o que foi encontrado e o que era esperado (`1:19: encontrei ';', esperava '='`). Token `error` do scanner vira "caractere não reconhecido". | Caio | Implementada |
 | 36 | Pontos de entrada para o Daniel: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`. | Implementação | Implementada |
 
+## A AST e a conversão (`Parser/Ast.lean`, `Parser/ToAst.lean`)
+
+| # | Decisão | Origem | Situação |
+|---|---|---|---|
+| 46 | A AST segue o `ast.rs` do exemplo Rust, **sem ponteiros**: `MType`, `Lit`, `BinOp`, `Expr Ty`, `Stmt Ty`, `FunDecl Ty`, `Program Ty = List (FunDecl Ty)`. | Proposta (roteiro) | Implementada |
+| 47 | Cada expressão carrega um **tipo anotado `Ty`**. O parser usa `Unit`; o verificador de tipos poderá usar `MType` sem reescrever a AST. | Proposta (roteiro) | Implementada |
+| 48 | A conversão devolve **`Except String`**: uma árvore fora do formato (bug no motor) vira erro `árvore malformada em NT.alt` em vez de travar. | Proposta (roteiro) | Implementada |
+| 49 | **Associatividade à esquerda por acumulador**: as caudas da árvore pendem para a direita, e `foldTail` as dobra à esquerda. Uma função só para os cinco níveis binários (`Or`, `And`, `Rel`, `Add`, `Mul`): o operador vem do token, direto (`and`, `or`) ou dentro de `RelOp`/`AddOp`/`MulOp`. `PostTail` e `Indices` têm o mesmo formato e usam a mesma `foldIndex`. | Implementação | Implementada |
+| 50 | Parênteses somem na AST. `-5` é `neg (lit 5)`, não um literal negativo. Comando `x = e;` e `a[i] = e;` viram `assign` com o alvo como expressão (`var` ou `index`). | Implementação | Implementada |
+| 51 | Números: inteiro pelo lexema (`toNat?`); real montado exatamente a partir de `dígitos.dígitos` com `Float.ofScientific` (Lean não tem `String.toFloat`). Texto: aspas retiradas, se vierem no lexema. | Implementação | Implementada |
+| 52 | A conversão usa **recursão estrutural** (o Lean prova sozinho que termina): sem `partial`. | Implementação | Implementada |
+| 53 | Ponto de entrada de ponta a ponta: `parseProgram (src : String) : Except String (Program Unit)`. O erro de sintaxe já sai como a mensagem em português com `linha:coluna`. | Implementação | Implementada |
+| 54 | O `Main.lean` lê o arquivo passado como argumento (ou usa um exemplo), **imprime a AST** e, em erro, imprime `erro: ...` no stderr e sai com código 1. A listagem de tokens do `Main` original saiu. | Proposta (roteiro, passo F) | Implementada — **avisar o Henrique** |
+| 55 | Impressão da AST com **toda operação binária entre parênteses** (`((a - b) - c)`), para a associatividade ficar visível. | Implementação | Implementada |
+| 56 | A parte do Daniel vive na branch **`dev/ast`**, feita sobre `dev/parser-generator` (depende do motor). | Implementação | **Confirmar com o Daniel** quem assume a revisão |
+
 ## Testes, CI e repositório
 
 | # | Decisão | Origem | Situação |
@@ -80,6 +96,8 @@ Atualizado em 5 de outubro de 2026.
 | 40 | O `Main.lean` **não foi alterado** nesta branch: ligar o parser lá é do Daniel. | Proposta | Fechada |
 | 41 | O guia em PDF (`guia-do-projeto.pdf`) fica **fora dos commits**. | Caio | Fechada |
 | 45 | **Só o necessário** na parte do Caio: saíram a gramática de livro, a gramática com conflito, e funções de depuração (`render`, `size`, mensagens de conflito). Fica o núcleo: gramática, FIRST/FOLLOW, tabela com detecção de conflito, motor e `ParseTree`. | Caio | Fechada |
+| 57 | Os testes da AST também ficam **só em `testes-locais/`** (fora do git), junto com os do motor. | Caio | Fechada |
+| 58 | A construção do DFA do scanner (`buildLexDFA`) leva **cerca de 4 minutos** e é refeita a cada execução do compilador. A tabela LL(1) e a conversão levam milissegundos. | Medição | **Pendente** (scanner: Henrique e Felipe) |
 | 42 | A lista de esperados de um erro é exatamente a linha da tabela. Num erro dentro de uma cauda nulável (ex.: `return 1 }`), ela fica longa (FIRST ∪ FOLLOW). Mantido para o motor seguir só a tabela. | Implementação | Pode melhorar |
 
 ## Em aberto
@@ -87,4 +105,6 @@ Atualizado em 5 de outubro de 2026.
 - Confirmar com o professor o escopo "gerador de parser" (decisão 5).
 - Confirmar a divisão do grupo (7 e 8) e o formato do `ParseTree` com o Daniel (27).
 - Regra de `stringLit` no scanner (20).
+- Tempo de construção do DFA do scanner (58).
+- Avisar o Henrique da troca do `Main.lean` (54).
 - Definir quem faz tipos, interpretador e codegen (10).
