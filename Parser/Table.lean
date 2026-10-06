@@ -7,10 +7,6 @@ import Parser.First
 
 def tokIdx (k : TokenKind) : Nat := k.ctorIdx
 
-/-- Nome curto do token (`id` em vez de `TokenKind.id`). -/
-private def tokName (k : TokenKind) : String :=
-  ((reprStr k).splitOn ".").getLast!
-
 structure Conflict where
   nt    : String
   tok   : TokenKind
@@ -60,32 +56,13 @@ def LL1Table.lookup (t : LL1Table) (a : String) (k : TokenKind) : Option Product
 def LL1Table.expected (t : LL1Table) (a : String) : List TokenKind :=
   t.grammar.terminals.filter fun k => t.cells.contains (a, tokIdx k)
 
-/-- Número de células preenchidas. -/
-def LL1Table.size (t : LL1Table) : Nat := t.cells.size
-
-/-- Rótulo `lhs.alt` de uma produção pelo id. -/
-private def prodLabel (g : Grammar) (i : Nat) : String :=
-  match g.prods[i]? with
-  | some p => s!"{p.lhs}.{p.alt}"
-  | none   => s!"#{i}"
-
-def Conflict.message (g : Grammar) (c : Conflict) : String :=
-  s!"conflito em {c.nt} com {tokName c.tok}: " ++ " vs ".intercalate (c.prods.map (prodLabel g))
-
-/-- Dump textual: cada não-terminal e suas células (token ↦ alternativa). -/
-def LL1Table.render (t : LL1Table) : String :=
-  "\n".intercalate <| t.grammar.nonterminals.map fun n =>
-    let cs := t.grammar.terminals.filterMap fun k =>
-      (t.lookup n k).map fun p => s!"{tokName k} ↦ {p.alt}"
-    s!"{n}: " ++ ", ".intercalate cs
-
 -- ══════════════════════════════════════════════
 -- 4. TABELA DO MINIC
 -- ══════════════════════════════════════════════
 
-/-- Tabela do miniC. A gramática é LL(1); se um dia tiver conflito, `panic!` com as mensagens. -/
+/-- Tabela do miniC. A gramática é LL(1); se um dia tiver conflito, `panic!` com os conflitos. -/
 def minicTable : LL1Table :=
   match buildTable minicGrammar with
   | .ok t => t
   | .error cs =>
-    panic! ("minicGrammar não é LL(1):\n" ++ "\n".intercalate (cs.map (Conflict.message minicGrammar)))
+    panic! s!"minicGrammar não é LL(1): {reprStr cs}"

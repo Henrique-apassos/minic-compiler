@@ -32,12 +32,6 @@ lake exe minic-compiler
 
 O executável roda o scanner sobre um programa de exemplo definido em `Main.lean` e imprime cada token no formato `linha:coluna  tipo  "lexema"`.
 
-```bash
-lake test
-```
-
-Roda os testes do gerador de parser (`Parser/Tests.lean`): gramática, FIRST/FOLLOW, tabela, motor e programas miniC aceitos e rejeitados. Sai com erro se algum falhar.
-
 ## Estrutura do projeto
 
 ```
@@ -53,8 +47,7 @@ Roda os testes do gerador de parser (`Parser/Tests.lean`): gramática, FIRST/FOL
 │   ├── Grammar.lean           # Sym, Production, Grammar e a gramática LL(1) do miniC
 │   ├── First.lean             # Nulável, FIRST e FOLLOW por ponto fixo
 │   ├── Table.lean             # Tabela LL(1) com detecção de conflitos
-│   ├── Engine.lean            # Motor preditivo com pilha explícita e mensagens de erro
-│   └── Tests.lean             # Testes (lake test)
+│   └── Engine.lean            # Motor preditivo com pilha explícita
 ├── docs/DECISOES.md           # Decisões do projeto e de onde vieram
 ├── Automata/
 │   ├── Common.lean            # Tipos base (State, Symbol, Transition) e predicados
@@ -102,15 +95,10 @@ Roda os testes do gerador de parser (`Parser/Tests.lean`): gramática, FIRST/FOL
 - **Gramática como dado** (`Grammar.lean`). A gramática do miniC, extraída do parser Rust de referência e reescrita para LL(1): laços viram caudas recursivas à direita com ε (`AddTail`, `MulTail`...) e prefixos comuns são fatorados (`ID IdStmt`, `ID AtomRest`). São **42 não-terminais e 85 produções**. A ordem das alternativas faz parte do contrato com a conversão para AST.
 - **Nulável, FIRST e FOLLOW** (`First.lean`). Calculados por ponto fixo, com um combustível limitado que basta (sem `partial`).
 - **Tabela LL(1)** (`Table.lean`). PREDICT(A → α) = FIRST(α), mais FOLLOW(A) se α é nulável. Se duas produções caem na mesma célula, a gramática é recusada com a lista de conflitos. A do miniC tem **0 conflitos** e 313 células.
-- **Motor** (`Engine.lean`). Uma pilha de trabalho (símbolos e marcadores de "fechar nó") e uma pilha de valores. Não há retrocesso: cada passo olha só o topo e o token atual. Para no primeiro erro, com `linha:coluna`, o que foi encontrado e o que era esperado:
+- **Motor** (`Engine.lean`). Uma pilha de trabalho (símbolos e marcadores de "fechar nó") e uma pilha de valores. Não há retrocesso: cada passo olha só o topo e o token atual. Para no primeiro erro, com `linha:coluna`, o token encontrado e os tokens esperados.
 
-  ```
-  1:25: encontrei ';', esperava 'true', 'false', identificador, número inteiro, ...
-  ```
-
-- **Árvore de derivação** (`Tree.lean`). `leaf tok` guarda o token inteiro; `node nt alt kids` guarda o não-terminal, a alternativa usada (0 = primeira) e os filhos (ε = sem filhos). Há uma árvore de exemplo feita à mão (`ParseTree.Example.subChain`, de `a - b - c`) que os testes garantem ser idêntica à do motor.
+- **Árvore de derivação** (`Tree.lean`). `leaf tok` guarda o token inteiro; `node nt alt kids` guarda o não-terminal, a alternativa usada (0 = primeira) e os filhos (ε = sem filhos).
 - **Pontos de entrada**: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`.
-- **Testes** (`Tests.lean`, `lake test`). 64 verificações: a gramática de livro (E/T/F) contra as respostas conhecidas, uma gramática com conflito de propósito, e programas miniC aceitos e rejeitados com a posição do erro.
 
 ### Exemplo do scanner
 

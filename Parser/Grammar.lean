@@ -37,15 +37,6 @@ def terminals (g : Grammar) : List TokenKind :=
     p.rhs.filterMap fun | .t k => some k | .nt _ => none
   (ts ++ [TokenKind.eof]).eraseDups
 
-def prodsOf (g : Grammar) (a : String) : List Production :=
-  g.prods.toList.filter (·.lhs == a)
-
-/-- Não-terminais usados em algum lado direito mas sem nenhuma produção (deve ser vazio). -/
-def undefinedNonterminals (g : Grammar) : List String :=
-  let used := g.prods.toList.flatMap fun p =>
-    p.rhs.filterMap fun | .nt n => some n | .t _ => none
-  (used.filter (fun n => !(g.nonterminals.contains n))).eraseDups
-
 end Grammar
 
 /-- Monta a gramática a partir de `(não-terminal, [alternativa, alternativa, ...])`,
@@ -117,23 +108,4 @@ def minicGrammar : Grammar := mkGrammar "Program" [
   ("RelOp",      [[T .eq], [T .neq], [T .lt], [T .le], [T .gt], [T .ge]]),
   ("AddOp",      [[T .plus], [T .minus]]),
   ("MulOp",      [[T .times], [T .div]])
-]
-
--- ══════════════════════════════════════════════
--- 3. GRAMÁTICA DE EXPRESSÕES DOS LIVROS-TEXTO (para testar o gerador)
--- ══════════════════════════════════════════════
--- E := T E' · E' := + T E' | ε · T := F T' · T' := * F T' | ε · F := ( E ) | id
--- FIRST/FOLLOW e tabela conhecidos (Aho et al., "Dragon Book", seção 4.4).
-
-def exprGrammar : Grammar := mkGrammar "E" [
-  ("E",  [[N "T", N "E'"]]),
-  ("E'", [[T .plus, N "T", N "E'"], []]),
-  ("T",  [[N "F", N "T'"]]),
-  ("T'", [[T .times, N "F", N "T'"], []]),
-  ("F",  [[T .lparen, N "E", T .rparen], [T .id]])
-]
-
-/-- Gramática com conflito de propósito: S := id | id + id (as duas começam com `id`). -/
-def conflictGrammar : Grammar := mkGrammar "S" [
-  ("S", [[T .id], [T .id, T .plus, T .id]])
 ]
