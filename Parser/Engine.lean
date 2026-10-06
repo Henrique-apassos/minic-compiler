@@ -11,11 +11,36 @@ structure ParseError where
   expected : List TokenKind
   deriving Repr
 
-/-- `3:12: token inesperado ';' (esperado: id, numInt, lparen)` -/
+/-- Como o token aparece para o usuário nas mensagens de erro. -/
+def TokenKind.describe : TokenKind → String
+  | .kwInt => "'int'" | .kwFloat => "'float'" | .kwBool => "'bool'" | .kwStr => "'str'"
+  | .kwVoid => "'void'" | .kwIf => "'if'" | .kwElse => "'else'" | .kwWhile => "'while'"
+  | .kwReturn => "'return'" | .kwTrue => "'true'" | .kwFalse => "'false'"
+  | .kwAnd => "'and'" | .kwOr => "'or'"
+  | .id => "identificador" | .numInt => "número inteiro" | .numFloat => "número real"
+  | .stringLit => "texto"
+  | .plus => "'+'" | .minus => "'-'" | .times => "'*'" | .div => "'/'"
+  | .eq => "'=='" | .neq => "'!='" | .lt => "'<'" | .le => "'<='" | .gt => "'>'" | .ge => "'>='"
+  | .not => "'!'" | .assign => "'='"
+  | .lparen => "'('" | .rparen => "')'" | .lbrace => "'{'" | .rbrace => "'}'"
+  | .lbracket => "'['" | .rbracket => "']'" | .comma => "','" | .semi => "';'"
+  | .eof => "fim do arquivo" | .error => "caractere não reconhecido"
+
+/-- "a", "a ou b", "a, b ou c". -/
+private def joinOu : List String → String
+  | [] => ""
+  | [x] => x
+  | xs => ", ".intercalate xs.dropLast ++ " ou " ++ xs.getLast!
+
+/-- `3:12: encontrei ';', esperava identificador, número inteiro ou '('` -/
 def ParseError.message (e : ParseError) : String :=
-  let name (k : TokenKind) := ((reprStr k).splitOn ".").getLast!
-  s!"{e.found.line}:{e.found.column}: token inesperado {e.found.lexeme.quote}"
-    ++ s!" (esperado: {", ".intercalate (e.expected.map name)})"
+  let pos := s!"{e.found.line}:{e.found.column}: "
+  if e.found.kind == .error then
+    pos ++ s!"caractere não reconhecido '{e.found.lexeme}'"
+  else
+    let msg := s!"encontrei {e.found.kind.describe}"
+    let exp := e.expected.map TokenKind.describe
+    pos ++ (if exp.isEmpty then msg else msg ++ ", esperava " ++ joinOu exp)
 
 -- ══════════════════════════════════════════════
 -- 2. MOTOR PREDITIVO COM PILHA EXPLÍCITA

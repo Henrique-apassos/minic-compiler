@@ -68,7 +68,7 @@ Atualizado em 5 de outubro de 2026.
 | 32 | A tabela recusa a gramática se houver **qualquer conflito** e lista todos (não-terminal, token, produções em disputa). | Proposta | Implementada |
 | 33 | A tabela é indexada por (nome do não-terminal, índice do construtor do token — `TokenKind.ctorIdx`), sem alterar o `TokenKind` do scanner. | Implementação | Implementada |
 | 34 | O motor usa **pilha explícita** (itens "símbolo" e "fechar nó") e não recursão, para ser fiel ao algoritmo dirigido por tabela. O laço é `partial` (como o `scanLoop`): termina porque toda gramática sem conflitos aqui consome token ou desempilha. | Implementação | Implementada |
-| 35 | Erro: **para no primeiro erro** (sem recuperação). A mensagem tem linha:coluna, o token encontrado e os tokens esperados, pelos nomes do `TokenKind`. | Implementação | Implementada |
+| 35 | Erro: **para no primeiro erro** (sem recuperação). A mensagem é **em português**, com linha:coluna, o que foi encontrado e o que era esperado (`1:19: encontrei ';', esperava '='`). Token `error` do scanner vira "caractere não reconhecido". | Caio | Implementada |
 | 36 | Pontos de entrada para o Daniel: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`. | Implementação | Implementada |
 
 ## Testes, CI e repositório
@@ -79,7 +79,7 @@ Atualizado em 5 de outubro de 2026.
 | 39 | A parte do Caio vive na branch **`dev/parser-generator`** (mesmo padrão do `dev/automata` do Felipe). | Grupo (padrão existente) | Fechada |
 | 40 | O `Main.lean` **não foi alterado** nesta branch: ligar o parser lá é do Daniel. | Proposta | Fechada |
 | 41 | O guia em PDF (`guia-do-projeto.pdf`) fica **fora dos commits**. | Caio | Fechada |
-| 45 | **Só o necessário** na parte do Caio: saíram a gramática de livro, a gramática com conflito, funções de depuração (`render`, `size`, mensagens de conflito) e as mensagens de erro em português. Fica o núcleo: gramática, FIRST/FOLLOW, tabela com detecção de conflito, motor e `ParseTree`. | Caio | Fechada |
+| 45 | **Só o necessário** na parte do Caio: saíram a gramática de livro, a gramática com conflito, e funções de depuração (`render`, `size`, mensagens de conflito). Fica o núcleo: gramática, FIRST/FOLLOW, tabela com detecção de conflito, motor e `ParseTree`. | Caio | Fechada |
 | 42 | A lista de esperados de um erro é exatamente a linha da tabela. Num erro dentro de uma cauda nulável (ex.: `return 1 }`), ela fica longa (FIRST ∪ FOLLOW). Mantido para o motor seguir só a tabela. | Implementação | Pode melhorar |
 
 ## Em aberto

@@ -95,7 +95,7 @@ O executável roda o scanner sobre um programa de exemplo definido em `Main.lean
 - **Gramática como dado** (`Grammar.lean`). A gramática do miniC, extraída do parser Rust de referência e reescrita para LL(1): laços viram caudas recursivas à direita com ε (`AddTail`, `MulTail`...) e prefixos comuns são fatorados (`ID IdStmt`, `ID AtomRest`). São **42 não-terminais e 85 produções**. A ordem das alternativas faz parte do contrato com a conversão para AST.
 - **Nulável, FIRST e FOLLOW** (`First.lean`). Calculados por ponto fixo, com um combustível limitado que basta (sem `partial`).
 - **Tabela LL(1)** (`Table.lean`). PREDICT(A → α) = FIRST(α), mais FOLLOW(A) se α é nulável. Se duas produções caem na mesma célula, a gramática é recusada com a lista de conflitos. A do miniC tem **0 conflitos** e 313 células.
-- **Motor** (`Engine.lean`). Uma pilha de trabalho (símbolos e marcadores de "fechar nó") e uma pilha de valores. Não há retrocesso: cada passo olha só o topo e o token atual. Para no primeiro erro, com `linha:coluna`, o token encontrado e os tokens esperados.
+- **Motor** (`Engine.lean`). Uma pilha de trabalho (símbolos e marcadores de "fechar nó") e uma pilha de valores. Não há retrocesso: cada passo olha só o topo e o token atual. Para no primeiro erro, com uma mensagem em português: `1:19: encontrei ';', esperava '='`.
 
 - **Árvore de derivação** (`Tree.lean`). `leaf tok` guarda o token inteiro; `node nt alt kids` guarda o não-terminal, a alternativa usada (0 = primeira) e os filhos (ε = sem filhos).
 - **Pontos de entrada**: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`.
