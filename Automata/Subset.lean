@@ -1,5 +1,6 @@
 import Automata.Common
 import Automata.Thompson
+import Std.Data.HashMap
 
 -- ══════════════════════════════════════════════
 -- 0. ESTRUTURA DO DFA GERADO
@@ -31,25 +32,27 @@ def canonizeStates (l : List State) : List State :=
 -- ══════════════════════════════════════════════
 -- 2. FECHO-ÉPSILON E MOVE
 -- ══════════════════════════════════════════════
+-- As transições do NFA são indexadas uma vez por (estado, símbolo): assim cada
+-- passo acha os destinos direto, em vez de percorrer a lista inteira de transições.
 
-partial def epsilonClosure (t : List Transition) (current : List State) : List State :=
-  let nextStates := current.flatMap (fun q =>
-    t.filterMap (fun ((q0, sym), qf) =>
-      if q0 == q && sym == "ε" then some qf else none
-    )
-  )
-  let combined := canonizeStates (current ++ nextStates)
+abbrev TransIndex := Std.HashMap (State × Symbol) (List State)
 
-  if combined.length == current.length then combined
-  else epsilonClosure t combined
+def indexTransitions (t : List Transition) : TransIndex :=
+  t.foldl (fun m ((q0, sym), qf) => m.insert (q0, sym) (qf :: m.getD (q0, sym) [])) {}
 
-def move (t : List Transition) (states : List State) (sym : Symbol) : List State :=
-  let nextStates := states.flatMap (fun q =>
-    t.filterMap (fun ((q0, s), qf) =>
-      if q0 == q && s == sym then some qf else none
-    )
-  )
-  canonizeStates nextStates
+/-- Estados alcançáveis por ε a partir de `current` (busca com pilha; resultado canônico). -/
+partial def epsilonClosure (idx : TransIndex) (current : List State) : List State :=
+  go current (canonizeStates current)
+where
+  go (pending seen : List State) : List State :=
+    match pending with
+    | [] => seen
+    | q :: rest =>
+      let new := (idx.getD (q, "ε") []).filter (· ∉ seen)
+      go (new ++ rest) (new.foldl (fun acc s => insertState s acc) seen)
+
+def move (idx : TransIndex) (states : List State) (sym : Symbol) : List State :=
+  canonizeStates (states.flatMap (fun q => idx.getD (q, sym) []))
 
 -- ══════════════════════════════════════════════
 -- 3. O MOTOR DO ALGORITMO (SUBSET CONSTRUCTION)
@@ -63,15 +66,21 @@ def getId (q : List State) (map : List (List State × State)) : Option State :=
 structure SubsetEnv where
   nextDfaId : State
   qMap      : List (List State × State)
+  qIndex    : Std.HashMap (List State) State   -- o mesmo que `qMap`, para busca direta
   workList  : List (List State)
   dfaTrans  : List Transition
   alphabet  : List Symbol
 
-partial def subsetLoop (env : SubsetEnv) (nfaTrans : List Transition) : SubsetEnv :=
+/-- Ambiente inicial: só o estado `q0` (o fecho-ε do início do NFA), com id 0. -/
+def SubsetEnv.init (q0 : List State) (alphabet : List Symbol) : SubsetEnv :=
+  { nextDfaId := 1, qMap := [(q0, 0)], qIndex := ({} : Std.HashMap _ _).insert q0 0,
+    workList := [q0], dfaTrans := [], alphabet := alphabet }
+
+partial def subsetLoop (env : SubsetEnv) (nfaTrans : TransIndex) : SubsetEnv :=
   match env.workList with
   | [] => env
   | q :: restWorkList =>
-      let qId := (getId q env.qMap).get!
+      let qId := env.qIndex.getD q 0
 
       let newEnv := env.alphabet.foldl (fun currEnv c =>
         let deltaQC := move nfaTrans q c
@@ -79,7 +88,7 @@ partial def subsetLoop (env : SubsetEnv) (nfaTrans : List Transition) : SubsetEn
 
         if t.isEmpty then currEnv
         else
-          match getId t currEnv.qMap with
+          match currEnv.qIndex[t]? with
           | some tId =>
               { currEnv with
                 dfaTrans := ((qId, c), tId) :: currEnv.dfaTrans
@@ -89,6 +98,7 @@ partial def subsetLoop (env : SubsetEnv) (nfaTrans : List Transition) : SubsetEn
               { currEnv with
                 nextDfaId := currEnv.nextDfaId + 1,
                 qMap      := (t, newTId) :: currEnv.qMap,
+                qIndex    := currEnv.qIndex.insert t newTId,
                 workList  := t :: currEnv.workList,
                 dfaTrans  := ((qId, c), newTId) :: currEnv.dfaTrans
               }
@@ -102,17 +112,10 @@ partial def subsetLoop (env : SubsetEnv) (nfaTrans : List Transition) : SubsetEn
 
 /-- Transforma um RawNFA num RawDFA determinístico -/
 def constructDFA (raw : RawNFA) (alphabet : List Symbol) : RawDFA :=
-  let q0 := epsilonClosure raw.transitions [raw.start]
+  let idx := indexTransitions raw.transitions
+  let q0 := epsilonClosure idx [raw.start]
 
-  let initialEnv : SubsetEnv := {
-    nextDfaId := 1,
-    qMap      := [(q0, 0)],
-    workList  := [q0],
-    dfaTrans  := [],
-    alphabet  := alphabet
-  }
-
-  let finalEnv := subsetLoop initialEnv raw.transitions
+  let finalEnv := subsetLoop (SubsetEnv.init q0 alphabet) idx
 
   -- Qualquer estado do DFA que contenha o estado de aceitação do NFA também é um estado de aceitação
   let dfaAcceptStates := finalEnv.qMap.filterMap (fun (states, id) =>
