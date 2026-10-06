@@ -18,10 +18,10 @@ Atualizado em 6 de outubro de 2026.
 | 2 | Primeiro implementar a linguagem (scanner, parser); semântica (tipos, interpretador) depois da primeira entrega. | Professor / Grupo | Fechada |
 | 3 | A linguagem é o **miniC** do repositório de referência em Rust. Linguagem, AST e testes vêm de lá; a estratégia de parser não. | Grupo | Fechada |
 | 4 | O scanner é construído por **regex → NFA (Thompson) → DFA (subconjuntos)**, com maximal munch. | Grupo (votação) | Fechada, implementada |
-| 5 | O parser é um **gerador LL(1) dirigido por tabela**: a gramática é dado, o gerador calcula FIRST/FOLLOW e a tabela, um motor genérico com pilha a executa. Mesmo desenho do scanner. | Professor | **Confirmar com o professor** que é isso que ele espera |
-| 6 | Reserva: se o tempo apertar, um parser recursivo à mão sobre a mesma gramática garante "algo funcional". | Proposta | Não foi necessário até agora |
+| 5 | O parser é um **gerador LL(1) dirigido por tabela**: a gramática é dado, o gerador calcula FIRST/FOLLOW e a tabela, um motor genérico com pilha a executa. Mesmo desenho do scanner. | Professor | Fechada: é um gerador mesmo |
+| 6 | Reserva: se o tempo apertar, um parser recursivo à mão sobre a mesma gramática garante "algo funcional". | Proposta | Descartada: o professor quer o gerador |
 | 7 | Divisão: Henrique e Felipe no scanner; Caio e Daniel no parser. | Grupo | **Confirmar** (deduzida de uma mensagem) |
-| 8 | Dentro do parser: **Caio** faz o gerador e o motor (gramática, FIRST/FOLLOW, tabela, motor, `ParseTree`); **Daniel** faz AST, conversão árvore → AST, testes de ponta a ponta e o `Main.lean`. | Proposta | **Confirmar com o Daniel** |
+| 8 | Dentro do parser: **Caio** faz o gerador e o motor (gramática, FIRST/FOLLOW, tabela, motor, `ParseTree`); **Daniel** faz AST, conversão árvore → AST, testes de ponta a ponta e o `Main.lean`. | Proposta | Fechada |
 | 9 | Minimização de Hopcroft: opcional, fora da primeira entrega. | Grupo | Fechada |
 | 10 | Verificador de tipos, interpretador e codegen: sem dono, depois da primeira entrega. | Grupo | Aberta |
 
@@ -29,10 +29,10 @@ Atualizado em 6 de outubro de 2026.
 
 | # | Decisão | Origem | Situação |
 |---|---|---|---|
-| 11 | **Ponteiros** (`&e`, `*e`, `T*`) ficam fora da primeira versão. O scanner não tem `&`, e `*` unário colide com multiplicação. | Proposta | Adotada na gramática |
-| 12 | O programa **termina obrigatoriamente em `eof`**: lixo depois da última função é erro com posição. O Rust para em silêncio no primeiro lixo. | Proposta | Adotada (`Program := FunList eof`) |
-| 13 | **`;` obrigatório** depois de comandos simples (declaração, atribuição, chamada, `return`). | Proposta (segue o código Rust) | Adotada |
-| 14 | **Precedência do `!`** abaixo da comparação: `!a == b` é `!(a == b)`. Segue o código Rust, não o guia da linguagem. | Proposta | Adotada |
+| 11 | **Ponteiros** (`&e`, `*e`, `T*`) ficam fora da primeira versão. O scanner não tem `&`, e `*` unário colide com multiplicação. | Proposta / Caio | Fechada |
+| 12 | O programa **termina obrigatoriamente em `eof`**: lixo depois da última função é erro com posição. O Rust para em silêncio no primeiro lixo. | Proposta / Caio | Fechada (`Program := FunList eof`) |
+| 13 | **`;` obrigatório** depois de comandos simples (declaração, atribuição, chamada, `return`). | Proposta (segue o código Rust) / Caio | Fechada |
+| 14 | **Precedência do `!`** abaixo da comparação: `!a == b` é `!(a == b)`. Segue o código Rust (de onde vêm os testes), não o guia da linguagem nem o C. | Proposta / Caio | Fechada — **avisar o grupo**, porque difere do C |
 | 15 | `if` e `while` exigem bloco `{ }`; a condição não precisa de parênteses (parênteses são só uma expressão entre parênteses). | Exemplo Rust | Adotada |
 | 16 | Corpo de função pode ser qualquer comando, não só bloco. | Exemplo Rust | Adotada |
 | 17 | Tipos de array `T[]` com **qualquer número de dimensões** (o Rust limita a 2). | Proposta | Adotada (`Dims`) |
@@ -55,7 +55,7 @@ Atualizado em 6 de outubro de 2026.
 |---|---|---|---|
 | 25 | A saída do motor é uma **árvore de derivação** `ParseTree`, não a AST. A AST é responsabilidade da conversão (Daniel). | Proposta | Implementada |
 | 26 | `leaf tok`: guarda o **`Token` inteiro** (com linha e coluna) para mensagens de erro nas fases seguintes. | Proposta | Implementada |
-| 27 | `node nt alt kids`: não-terminal **por nome (`String`)**, igual à gramática; `alt` = **índice da alternativa dentro do não-terminal** (0 = primeira); ε = `kids` vazio. | Proposta | Implementada — **combinar com o Daniel** |
+| 27 | `node nt alt kids`: não-terminal **por nome (`String`)**, igual à gramática; `alt` = **índice da alternativa dentro do não-terminal** (0 = primeira); ε = `kids` vazio. | Proposta | Fechada (Daniel de acordo) |
 | 28 | Sem árvore de exemplo nem funções de visualização no `Tree.lean`: só o tipo. O Daniel pode imprimir a árvore com o `Repr` derivado. | Caio (enxugar ao necessário) | Fechada |
 
 ## O gerador e o motor
@@ -85,7 +85,7 @@ Atualizado em 6 de outubro de 2026.
 | 53 | Ponto de entrada de ponta a ponta: `parseProgram (src : String) : Except String (Program Unit)`. O erro de sintaxe já sai como a mensagem em português com `linha:coluna`. | Implementação | Implementada |
 | 54 | O `Main.lean` lê o arquivo passado como argumento (ou usa um exemplo), **imprime a AST** e, em erro, imprime `erro: ...` no stderr e sai com código 1. A listagem de tokens do `Main` original saiu. | Proposta (roteiro, passo F) | Implementada — **avisar o Henrique** |
 | 55 | Impressão da AST com **toda operação binária entre parênteses** (`((a - b) - c)`), para a associatividade ficar visível. | Implementação | Implementada |
-| 56 | A parte do Daniel vive na branch **`dev/ast`**, feita sobre `dev/parser-generator` (depende do motor). | Implementação | **Confirmar com o Daniel** quem assume a revisão |
+| 56 | A parte do Daniel vive na branch **`dev/ast`**, feita sobre `dev/parser-generator` (depende do motor). | Implementação | Fechada |
 
 ## Testes, CI e repositório
 
@@ -102,8 +102,8 @@ Atualizado em 6 de outubro de 2026.
 
 ## Em aberto
 
-- Confirmar com o professor o escopo "gerador de parser" (decisão 5).
-- Confirmar a divisão do grupo (7 e 8) e o formato do `ParseTree` com o Daniel (27).
+- Confirmar a divisão scanner × parser no grupo (7).
+- Avisar o grupo da precedência do `!` (14).
 - Regra de `stringLit` no scanner (20).
 - Tempo de construção do DFA do scanner (58).
 - Avisar o Henrique da troca do `Main.lean` (54).
