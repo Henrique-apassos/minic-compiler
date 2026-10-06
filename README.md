@@ -2,7 +2,7 @@
 
 Compilador para **Mini-C**, um subconjunto da linguagem C, escrito em **Lean 4**.
 
-O projeto tem a **análise léxica (scanner)** e o **gerador de parser LL(1)** com seu motor. O scanner foi construído do zero sobre uma pequena biblioteca de autômatos: as regras léxicas são expressões regulares, convertidas em NFA pelo algoritmo de Thompson e depois em DFA pela construção de subconjuntos. Por fim, o DFA é executado com *maximal munch* sobre o código-fonte.
+O projeto tem a **análise léxica (scanner)**, o **gerador de parser LL(1)** com seu motor, e a **AST** com a conversão da árvore de derivação. O executável lê um programa e imprime a AST. O scanner foi construído do zero sobre uma pequena biblioteca de autômatos: as regras léxicas são expressões regulares, convertidas em NFA pelo algoritmo de Thompson e depois em DFA pela construção de subconjuntos. Por fim, o DFA é executado com *maximal munch* sobre o código-fonte.
 
 ```
 Regras (Regex × TokenKind) ──Thompson──▶ NFA combinado ──Subset construction──▶ DFA ──maximal munch──▶ Tokens
@@ -14,7 +14,11 @@ O parser segue o mesmo desenho: a gramática é escrita como dado, o gerador cal
 Gramática (produções) ──ponto fixo──▶ nulável/FIRST/FOLLOW ──▶ tabela LL(1) ──motor com pilha──▶ Árvore de derivação
 ```
 
-A conversão da árvore de derivação para a AST, e a ligação no `Main.lean`, são a próxima etapa.
+Por fim, a árvore de derivação é convertida na AST, que guarda só o significado do programa:
+
+```
+texto ──scan──▶ tokens ──parse──▶ árvore de derivação ──toProgram──▶ AST
+```
 
 ## Requisitos
 
@@ -27,16 +31,16 @@ lake build
 ```
 
 ```bash
-lake exe minic-compiler
+lake exe minic-compiler programa.c
 ```
 
-O executável roda o scanner sobre um programa de exemplo definido em `Main.lean` e imprime cada token no formato `linha:coluna  tipo  "lexema"`.
+Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime a AST, com toda operação binária entre parênteses para a associatividade ficar visível. Se houver erro de sintaxe, imprime `erro: linha:coluna: ...` e sai com código 1.
 
 ## Estrutura do projeto
 
 ```
 .
-├── Main.lean                  # Ponto de entrada: monta o DFA e escaneia um exemplo
+├── Main.lean                  # Ponto de entrada: texto → AST, imprime a AST ou o erro
 ├── Scanner.lean               # Raiz da biblioteca Scanner
 ├── Scanner/
 │   ├── Basic.lean             # Tipos de token, classes de caracteres e regras léxicas
@@ -47,7 +51,9 @@ O executável roda o scanner sobre um programa de exemplo definido em `Main.lean
 │   ├── Grammar.lean           # Sym, Production, Grammar e a gramática LL(1) do miniC
 │   ├── First.lean             # Nulável, FIRST e FOLLOW por ponto fixo
 │   ├── Table.lean             # Tabela LL(1) com detecção de conflitos
-│   └── Engine.lean            # Motor preditivo com pilha explícita
+│   ├── Engine.lean            # Motor preditivo com pilha explícita
+│   ├── Ast.lean               # Tipos da AST (MType, Expr, Stmt, FunDecl) e impressão
+│   └── ToAst.lean             # Árvore de derivação → AST, e parseProgram (texto → AST)
 ├── docs/DECISOES.md           # Decisões do projeto e de onde vieram
 ├── Automata/
 │   ├── Common.lean            # Tipos base (State, Symbol, Transition) e predicados
@@ -100,9 +106,34 @@ O executável roda o scanner sobre um programa de exemplo definido em `Main.lean
 - **Árvore de derivação** (`Tree.lean`). `leaf tok` guarda o token inteiro; `node nt alt kids` guarda o não-terminal, a alternativa usada (0 = primeira) e os filhos (ε = sem filhos).
 - **Pontos de entrada**: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`.
 
+### 4. AST e conversão (`Parser/Ast.lean`, `Parser/ToAst.lean`)
+
+- **Tipos da AST**: `MType` (com `array` para `T[]`), `Lit`, `BinOp`, `Expr Ty`, `Stmt Ty`, `FunDecl Ty` e `Program Ty`. O modelo é o `ast.rs` do exemplo em Rust, sem ponteiros. `Ty` é o tipo anotado em cada expressão: o parser usa `Unit`, e o verificador de tipos poderá usar `MType` sem reescrever a AST.
+- **Conversão**: uma função por grupo de não-terminais (`toProgram`, `toFun`, `toType`, `toStmt`, `toExpr`), escolhendo pelo nome e pela alternativa. Uma árvore fora do formato vira `Except.error` ("árvore malformada em Atom.5") em vez de travar. Recursão estrutural, sem `partial`.
+- **Associatividade**: as caudas (`AddTail`, `MulTail`...) pendem para a direita na árvore; um acumulador as dobra à esquerda, e `a - b - c` vira `(a - b) - c`. Uma função só (`foldTail`) serve para os cinco níveis binários, e outra (`foldIndex`) para `a[i][j]`.
+- **De ponta a ponta**: `parseProgram (src : String) : Except String (Program Unit)`.
+
+Exemplo: `lake exe minic-compiler` sobre o programa de `Main.lean` imprime
+
+```
+int fatorial(int n)
+{
+  if (n <= 1)
+  {
+    return 1;
+  }
+  float x = 3.140000;
+  int[] v = [1, 2, 3];
+  v[0] = (-v[1] * 2);
+  return (n * fatorial(((n - 1) - 0)));
+}
+```
+
+e um programa com erro imprime `erro: 1:25: encontrei ';', esperava identificador, '(', '[', ...`.
+
 ### Exemplo do scanner
 
-Entrada (em `Main.lean`):
+Entrada:
 
 ```c
 int fatorial(int n) {
@@ -138,7 +169,6 @@ Saída (trecho):
 - `epsilonClosure`, `subsetLoop` e `scanLoop` são `partial`, ou seja, não têm prova de terminação.
 - Não há prova formal de que o DFA gerado é equivalente ao NFA ou à regex. As estruturas verificadas `NFA`/`DFA` e o pipeline `Raw*` ainda não estão conectados.
 - O motor de parser é `partial`; o ponto fixo de FIRST/FOLLOW não é.
-- Ainda falta a **AST** e a conversão árvore de derivação → AST, e ligar o parser no `Main.lean`.
 - Próximas fases do compilador: análise semântica (tipos), interpretador e geração de código.
 
 As decisões de projeto, com origem e o que ainda precisa ser confirmado, estão em [docs/DECISOES.md](docs/DECISOES.md).
