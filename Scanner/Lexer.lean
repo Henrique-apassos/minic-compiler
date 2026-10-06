@@ -49,11 +49,9 @@ structure LexDFA where
 def buildLexDFA (rules : List (Regex × TokenKind)) : LexDFA :=
   let (tnfa, _) := (buildCombined rules).run 0
   let alphabet := (rules.flatMap (fun (r, _) => r.symbols)).eraseDups
-  let q0 := epsilonClosure tnfa.transitions [tnfa.start]
-  let env0 : SubsetEnv := {
-    nextDfaId := 1, qMap := [(q0, 0)], workList := [q0],
-    dfaTrans := [], alphabet := alphabet }
-  let env := subsetLoop env0 tnfa.transitions
+  let idx := indexTransitions tnfa.transitions
+  let q0 := epsilonClosure idx [tnfa.start]
+  let env := subsetLoop (SubsetEnv.init q0 alphabet) idx
   let trans := env.dfaTrans.foldl
     (fun m ((s, c), d) => m.insert (s, c) d) {}
   let accepting := env.qMap.foldl (fun m (states, id) =>
