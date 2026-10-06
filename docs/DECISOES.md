@@ -97,7 +97,7 @@ Atualizado em 6 de outubro de 2026.
 | 41 | O guia em PDF (`guia-do-projeto.pdf`) fica **fora dos commits**. | Caio | Fechada |
 | 45 | **Só o necessário** na parte do Caio: saíram a gramática de livro, a gramática com conflito, e funções de depuração (`render`, `size`, mensagens de conflito). Fica o núcleo: gramática, FIRST/FOLLOW, tabela com detecção de conflito, motor e `ParseTree`. | Caio | Fechada |
 | 57 | Os testes da AST também ficam **só em `testes-locais/`** (fora do git), junto com os do motor. | Caio | Fechada |
-| 58 | A construção do DFA do scanner (`buildLexDFA`) leva **cerca de 4 minutos** e é refeita a cada execução do compilador. A tabela LL(1) e a conversão levam milissegundos. | Medição | **Pendente** (scanner: Henrique e Felipe) |
+| 58 | A construção do DFA do scanner (`buildLexDFA`) leva **cerca de 4 minutos** e é refeita a cada execução do compilador. A tabela LL(1) e a conversão levam milissegundos. | Medição | Resolvida: transições e estados indexados em `HashMap`, ~2 s (PR #3, na `main`) |
 | 42 | A lista de esperados de um erro é exatamente a linha da tabela. Num erro dentro de uma cauda nulável (ex.: `return 1 }`), ela fica longa (FIRST ∪ FOLLOW). Mantido para o motor seguir só a tabela. | Implementação | Pode melhorar |
 
 ## Em aberto
@@ -105,6 +105,5 @@ Atualizado em 6 de outubro de 2026.
 - Confirmar a divisão scanner × parser no grupo (7).
 - Avisar o grupo da precedência do `!` (14).
 - Regra de `stringLit` no scanner (20).
-- Tempo de construção do DFA do scanner (58).
 - Avisar o Henrique da troca do `Main.lean` (54).
 - Definir quem faz tipos, interpretador e codegen (10).

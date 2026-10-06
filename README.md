@@ -36,8 +36,6 @@ lake exe minic-compiler programa.c
 
 Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime a AST, com toda operação binária entre parênteses para a associatividade ficar visível. Se houver erro de sintaxe, imprime `erro: linha:coluna: ...` e sai com código 1.
 
-A inicialização leva alguns minutos: é a construção do DFA do scanner (`buildLexDFA`), refeita a cada execução.
-
 ## Estrutura do projeto
 
 ```
@@ -171,7 +169,6 @@ Saída (trecho):
 - `epsilonClosure`, `subsetLoop` e `scanLoop` são `partial`, ou seja, não têm prova de terminação.
 - Não há prova formal de que o DFA gerado é equivalente ao NFA ou à regex. As estruturas verificadas `NFA`/`DFA` e o pipeline `Raw*` ainda não estão conectados.
 - O motor de parser é `partial`; o ponto fixo de FIRST/FOLLOW não é.
-- A construção do DFA do scanner leva alguns minutos e é refeita a cada execução do compilador.
 - Próximas fases do compilador: análise semântica (tipos), interpretador e geração de código.
 
 As decisões de projeto, com origem e o que ainda precisa ser confirmado, estão em [docs/DECISOES.md](docs/DECISOES.md).
