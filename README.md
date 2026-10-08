@@ -45,6 +45,7 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime
 ├── Scanner/
 │   ├── Basic.lean             # Tipos de token, classes de caracteres e regras léxicas
 │   └── Lexer.lean             # NFA combinado, DFA do scanner e o laço de varredura
+├── Tests/                     # Testes (`lake test`): Harness, Syntax, Programs, Main e fixtures/
 ├── Parser.lean                # Raiz da biblioteca Parser
 ├── Parser/
 │   ├── Tree.lean              # ParseTree: o contrato entre o motor e a conversão para AST
@@ -161,6 +162,14 @@ Saída (trecho):
 8:13  TokenKind.error     "@"
 8:14  TokenKind.eof       ""
 ```
+
+## Testes
+
+```bash
+lake test
+```
+
+Roda `Tests/Main.lean` (71 testes, 3 pendentes em 8 de outubro de 2026). Os casos vêm de `MiniC/tests/parser.rs` e `program.rs`, com os mesmos nomes; os fixtures `.minic` estão em `Tests/fixtures/`. Pendente = lacuna conhecida do compilador (hoje, literais de string): não falha a execução, mas se passar o teste falha pedindo para remover a marca. Detalhes em `docs/DECISOES.md` (#37 e #59).
 
 ## Limitações atuais e próximos passos
 

@@ -91,12 +91,13 @@ Atualizado em 6 de outubro de 2026.
 
 | # | Decisão | Origem | Situação |
 |---|---|---|---|
-| 37 | **Testes não vão para o GitHub.** Não foram pedidos pelo professor. Uma bateria pequena fica só local, na pasta `testes-locais/` (fora do git), como pacote separado que usa o projeto como dependência. | Caio | Fechada (testes em pausa) |
+| 37 | ~~Testes não vão para o GitHub.~~ **Revertida em 8 de outubro de 2026:** os testes entram no repositório, em `Tests/`, e rodam com `lake test` (e no CI). Motivo: sem eles, o `lake build` só prova que compila, não que o scanner e o parser se comportam como o Rust de referência. | Caio (original) / revertida a pedido | Revertida |
 | 39 | A parte do Caio vive na branch **`dev/parser-generator`** (mesmo padrão do `dev/automata` do Felipe). | Grupo (padrão existente) | Fechada |
 | 40 | O `Main.lean` **não foi alterado** nesta branch: ligar o parser lá é do Daniel. | Proposta | Fechada |
 | 41 | O guia em PDF (`guia-do-projeto.pdf`) fica **fora dos commits**. | Caio | Fechada |
 | 45 | **Só o necessário** na parte do Caio: saíram a gramática de livro, a gramática com conflito, e funções de depuração (`render`, `size`, mensagens de conflito). Fica o núcleo: gramática, FIRST/FOLLOW, tabela com detecção de conflito, motor e `ParseTree`. | Caio | Fechada |
-| 57 | Os testes da AST também ficam **só em `testes-locais/`** (fora do git), junto com os do motor. | Caio | Fechada |
+| 57 | Os testes da AST também ficam em `Tests/`, junto com os do parser (ver 37). | Caio (original) / revertida a pedido | Revertida |
+| 59 | Os testes são **portados de `MiniC/tests/parser.rs` e `program.rs`** (mesmos nomes de teste). Sub-parsers soltos do Rust (`expression`, `statement`, `fun_decl`) viram `parseProgram` com o trecho embrulhado em `void t() { ... }`. Ficam de fora: ponteiros (#11), interpretador, type checker, stdlib, TAC e CLI. Lacunas conhecidas ficam como **pendentes** (falha esperada; se passar, o teste falha pedindo para tirar a marca): hoje só `stringLit` (#20). | Implementação | Implementada |
 | 58 | A construção do DFA do scanner (`buildLexDFA`) leva **cerca de 4 minutos** e é refeita a cada execução do compilador. A tabela LL(1) e a conversão levam milissegundos. | Medição | Resolvida: transições e estados indexados em `HashMap`, ~2 s (PR #3, na `main`) |
 | 42 | A lista de esperados de um erro é exatamente a linha da tabela. Num erro dentro de uma cauda nulável (ex.: `return 1 }`), ela fica longa (FIRST ∪ FOLLOW). Mantido para o motor seguir só a tabela. | Implementação | Pode melhorar |
 

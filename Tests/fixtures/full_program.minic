@@ -1,0 +1,9 @@
+void inc(int x) {
+  x = x + 1;
+  x = x;
+}
+
+void main() {
+  inc(1);
+  int y = 42;
+}
