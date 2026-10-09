@@ -68,7 +68,7 @@ Atualizado em 6 de outubro de 2026.
 | 34 | O motor usa **pilha explícita** (itens "símbolo" e "fechar nó") e não recursão, para ser fiel ao algoritmo dirigido por tabela. O laço é `partial` (como o `scanLoop`): termina porque toda gramática sem conflitos aqui consome token ou desempilha. | Implementação | Implementada |
 | 35 | Erro: **para no primeiro erro** (sem recuperação). A mensagem é **em português**, com linha:coluna, o que foi encontrado e o que era esperado (`1:19: encontrei ';', esperava '='`). Token `error` do scanner vira "caractere não reconhecido". | Implementação | Implementada |
 | 36 | Pontos de entrada do parser: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`. | Implementação | Implementada |
-| 42 | A lista de esperados de um erro é exatamente a linha da tabela. Num erro dentro de uma cauda nulável (ex.: `return 1 }`), ela fica longa (FIRST ∪ FOLLOW). Mantido para o motor seguir só a tabela. | Implementação | Pode melhorar |
+| 42 | A lista de esperados de um erro vem da **pilha do motor**: FIRST de cada símbolo, do topo para baixo, enquanto ele puder ser vazio. Antes vinha da linha da tabela, que incluía o FOLLOW de todos os contextos (depois de `int x = 1`, listava `)`, `]`, `,` e `{`, que ali não servem). | Implementação | Implementada |
 
 ## A AST e a conversão (`Parser/Ast.lean`, `Parser/ToAst.lean`)
 

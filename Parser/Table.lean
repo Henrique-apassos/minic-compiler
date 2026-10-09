@@ -52,10 +52,6 @@ def buildTable (g : Grammar) : Except (List Conflict) LL1Table :=
 def LL1Table.lookup (t : LL1Table) (a : String) (k : TokenKind) : Option Production :=
   (t.cells.get? (a, tokIdx k)).bind (t.grammar.prods[·]?)
 
-/-- Tokens com célula para `a`, na ordem de `g.terminals` (para mensagens de erro). -/
-def LL1Table.expected (t : LL1Table) (a : String) : List TokenKind :=
-  t.grammar.terminals.filter fun k => t.cells.contains (a, tokIdx k)
-
 -- ══════════════════════════════════════════════
 -- 4. TABELA DO MINIC
 -- ══════════════════════════════════════════════

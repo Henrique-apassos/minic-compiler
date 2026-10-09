@@ -48,6 +48,10 @@ def checks : List (String × Bool) := [
   ("rejeita operando faltando em 1:25", rejectsAt "int main() { return a - ; }" 1 25),
   ("rejeita ; faltando em 1:24",        rejectsAt "int main() { int x = 1 }" 1 24),
   ("rejeita lixo depois do programa em 1:16", rejectsAt "int main() { } x" 1 16),
+  ("esperados vêm da pilha: só ; fecha a declaração",
+    match parseSource "int main() { int a = 1 return a; }" with
+    | .ok _ => false
+    | .error e => e.message == "1:24: encontrei 'return', esperava '[', ';', 'or', 'and', '-', '==', '!=', '<', '<=', '>', '>=', '+', '*' ou '/'"),
   -- AST
   ("AST: a - b - c é (a - b) - c",
     match parseProgram "int main() { return a - b - c; }" with
