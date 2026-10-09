@@ -3,7 +3,6 @@
 Registro das decisões que moldam o compilador. Cada uma diz **de onde veio** e se ainda **precisa ser confirmada**.
 
 Legenda de origem:
-- **Professor**: pedido do professor (relatado no grupo).
 - **Grupo**: decidido no chat do grupo.
 - **Proposta**: sugestão do roteiro ou desta implementação. O grupo pode trocar.
 - **Implementação**: escolha técnica feita ao escrever o código (branches `dev/parser-generator` e `dev/ast`).
@@ -14,13 +13,13 @@ Atualizado em 6 de outubro de 2026.
 
 | # | Decisão | Origem | Situação |
 |---|---|---|---|
-| 1 | O compilador é escrito em **Lean 4** (Lake). | Professor | Fechada |
-| 2 | Primeiro implementar a linguagem (scanner, parser); semântica (tipos, interpretador) depois da primeira entrega. | Professor / Grupo | Fechada |
+| 1 | O compilador é escrito em **Lean 4** (Lake). | Grupo | Fechada |
+| 2 | Primeiro implementar a linguagem (scanner, parser); semântica (tipos, interpretador) depois da primeira entrega. | Grupo | Fechada |
 | 3 | A linguagem é o **miniC** do repositório de referência em Rust. Linguagem, AST e testes vêm de lá; a estratégia de parser não. | Grupo | Fechada |
 | 4 | O scanner é construído por **regex → NFA (Thompson) → DFA (subconjuntos)**, com maximal munch. | Grupo (votação) | Fechada, implementada |
 | 58 | A construção do DFA do scanner (`buildLexDFA`) leva **cerca de 4 minutos** e é refeita a cada execução do compilador. A tabela LL(1) e a conversão levam milissegundos. | Medição | Resolvida: transições e estados indexados em `HashMap`, ~2 s (PR #3, na `main`) |
-| 5 | O parser é um **gerador LL(1) dirigido por tabela**: a gramática é dado, o gerador calcula FIRST/FOLLOW e a tabela, um motor genérico com pilha a executa. Mesmo desenho do scanner. | Professor | Fechada: é um gerador mesmo |
-| 6 | Reserva: se o tempo apertar, um parser recursivo à mão sobre a mesma gramática garante "algo funcional". | Proposta | Descartada: o professor quer o gerador |
+| 5 | O parser é um **gerador LL(1) dirigido por tabela**: a gramática é dado, o gerador calcula FIRST/FOLLOW e a tabela, um motor genérico com pilha a executa. Mesmo desenho do scanner. | Grupo | Fechada: é um gerador mesmo |
+| 6 | Reserva: se o tempo apertar, um parser recursivo à mão sobre a mesma gramática garante "algo funcional". | Proposta | Descartada: o parser é o gerador |
 | 7 | Divisão: Henrique e Felipe no scanner; Caio e Daniel no parser. | Grupo | **Confirmar** (deduzida de uma mensagem) |
 | 8 | Dentro do parser: **Caio** faz o gerador e o motor (gramática, FIRST/FOLLOW, tabela, motor, `ParseTree`); **Daniel** faz AST, conversão árvore → AST, testes de ponta a ponta e o `Main.lean`. | Proposta | Fechada |
 | 9 | Minimização de Hopcroft: opcional, fora da primeira entrega. | Grupo | Fechada |
