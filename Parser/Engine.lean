@@ -53,6 +53,20 @@ private inductive Item where
   | sym   (s : Sym)
   | close (nt : String) (alt : Nat) (n : Nat)
 
+/-- O que pode vir agora, segundo a própria pilha: FIRST de cada símbolo, do topo para baixo,
+    enquanto eles puderem ser vazios. Mais exato que a linha da tabela, que inclui o FOLLOW de
+    todos os contextos (ex.: depois de `int x = 1`, só `;` fecha a expressão; `)` não). -/
+private def expectedAt (tbl : LL1Table) (work : List Item) : List TokenKind :=
+  let rec go : List Item → TokSet → TokSet
+    | [], acc => acc
+    | .close .. :: rest, acc => go rest acc
+    | .sym (.t k) :: _, acc => acc.add k
+    | .sym (.nt n) :: rest, acc =>
+      let acc := TokSet.union acc (tbl.analysis.firstOf n)
+      if tbl.analysis.isNullable n then go rest acc else acc
+  let set := go work []
+  tbl.grammar.terminals.filter set.contains
+
 -- Termina: numa gramática LL(1) sem conflitos não há recursão à esquerda, então entre
 -- dois consumos de token só cabem finitas expansões; e cada `close` encolhe a pilha.
 private partial def loop (tbl : LL1Table) (toks : Array Token) (i : Nat)
@@ -69,7 +83,7 @@ private partial def loop (tbl : LL1Table) (toks : Array Token) (i : Nat)
       else .error { found := cur, expected := [k] }
   | .sym (.nt a) :: rest =>
       match tbl.lookup a cur.kind with
-      | none => .error { found := cur, expected := tbl.expected a }
+      | none => .error { found := cur, expected := expectedAt tbl work }
       | some p => loop tbl toks i (p.rhs.map .sym ++ .close a p.alt p.rhs.length :: rest) vals
   | .close a alt n :: rest =>
       -- `vals` está invertida: os `n` primeiros são os filhos, do último para o primeiro

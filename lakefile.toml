@@ -1,6 +1,6 @@
 name = "minic-compiler"
 defaultTargets = ["minic-compiler", "Parser"]
-testDriver = "tests"
+testDriver = "parserTests"
 
 [[lean_lib]]
 name = "Scanner"
@@ -14,7 +14,7 @@ roots = [
   "Automata.Simulation",
   "Automata.SimulationTactics",
   "Automata.Thompson",
-  "Automata.Subset"
+  "Automata.Subset",
 ]
 
 [[lean_lib]]
@@ -24,10 +24,6 @@ name = "Parser"
 name = "minic-compiler"
 root = "Main"
 
-[[lean_lib]]
-name = "Tests"
-roots = ["Tests.Harness", "Tests.Syntax", "Tests.Programs"]
-
 [[lean_exe]]
-name = "tests"
-root = "Tests.Main"
+name = "parserTests"
+root = "Tests"
