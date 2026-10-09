@@ -20,8 +20,6 @@ Atualizado em 6 de outubro de 2026.
 | 58 | A construção do DFA do scanner (`buildLexDFA`) leva **cerca de 4 minutos** e é refeita a cada execução do compilador. A tabela LL(1) e a conversão levam milissegundos. | Medição | Resolvida: transições e estados indexados em `HashMap`, ~2 s (PR #3, na `main`) |
 | 5 | O parser é um **gerador LL(1) dirigido por tabela**: a gramática é dado, o gerador calcula FIRST/FOLLOW e a tabela, um motor genérico com pilha a executa. Mesmo desenho do scanner. | Grupo | Fechada: é um gerador mesmo |
 | 6 | Reserva: se o tempo apertar, um parser recursivo à mão sobre a mesma gramática garante "algo funcional". | Proposta | Descartada: o parser é o gerador |
-| 7 | Divisão: Henrique e Felipe no scanner; Caio e Daniel no parser. | Grupo | **Confirmar** (deduzida de uma mensagem) |
-| 8 | Dentro do parser: **Caio** faz o gerador e o motor (gramática, FIRST/FOLLOW, tabela, motor, `ParseTree`); **Daniel** faz AST, conversão árvore → AST, testes de ponta a ponta e o `Main.lean`. | Proposta | Fechada |
 | 9 | Minimização de Hopcroft: opcional, fora da primeira entrega. | Grupo | Fechada |
 | 10 | Verificador de tipos, interpretador e codegen: sem dono, depois da primeira entrega. | Grupo | Aberta |
 
@@ -29,10 +27,10 @@ Atualizado em 6 de outubro de 2026.
 
 | # | Decisão | Origem | Situação |
 |---|---|---|---|
-| 11 | **Ponteiros** (`&e`, `*e`, `T*`) ficam fora da primeira versão. O scanner não tem `&`, e `*` unário colide com multiplicação. | Proposta / Caio | Fechada |
-| 12 | O programa **termina obrigatoriamente em `eof`**: lixo depois da última função é erro com posição. O Rust para em silêncio no primeiro lixo. | Proposta / Caio | Fechada (`Program := FunList eof`) |
-| 13 | **`;` obrigatório** depois de comandos simples (declaração, atribuição, chamada, `return`). | Proposta (segue o código Rust) / Caio | Fechada |
-| 14 | **Precedência do `!`** abaixo da comparação: `!a == b` é `!(a == b)`. Segue o código Rust (de onde vêm os testes), não o guia da linguagem nem o C. | Proposta / Caio | Fechada — **avisar o grupo**, porque difere do C |
+| 11 | **Ponteiros** (`&e`, `*e`, `T*`) ficam fora da primeira versão. O scanner não tem `&`, e `*` unário colide com multiplicação. | Proposta | Fechada |
+| 12 | O programa **termina obrigatoriamente em `eof`**: lixo depois da última função é erro com posição. O Rust para em silêncio no primeiro lixo. | Proposta | Fechada (`Program := FunList eof`) |
+| 13 | **`;` obrigatório** depois de comandos simples (declaração, atribuição, chamada, `return`). | Proposta (segue o código Rust) | Fechada |
+| 14 | **Precedência do `!`** abaixo da comparação: `!a == b` é `!(a == b)`. Segue o código Rust (de onde vêm os testes), não o guia da linguagem nem o C. | Proposta | Fechada |
 | 15 | `if` e `while` exigem bloco `{ }`; a condição não precisa de parênteses (parênteses são só uma expressão entre parênteses). | Exemplo Rust | Adotada |
 | 16 | Corpo de função pode ser qualquer comando, não só bloco. | Exemplo Rust | Adotada |
 | 17 | Tipos de array `T[]` com **qualquer número de dimensões** (o Rust limita a 2). | Proposta | Adotada (`Dims`) |
@@ -46,17 +44,17 @@ Atualizado em 6 de outubro de 2026.
 |---|---|---|---|
 | 21 | A gramática é a do Rust reescrita para LL(1): laços viram **caudas recursivas à direita com ε** (`AddTail`, `MulTail`...) e prefixos comuns são **fatorados** (`ID IdStmt`, `ID AtomRest`). | Proposta | Implementada |
 | 22 | Tamanho: **42 não-terminais, 85 produções, 0 conflitos, 313 células na tabela** (verificado pelo próprio gerador). | Implementação | Verificada |
-| 23 | Um nível de não-terminal por nível de precedência: `Or` < `And` < `Not` < `Rel` < `Add` < `Mul` < `Unary` < `Postfix`/`Atom`. Todos os binários são associativos à esquerda **na AST** (a árvore de derivação pende para a direita; a conversão do Daniel corrige). | Proposta | Implementada |
+| 23 | Um nível de não-terminal por nível de precedência: `Or` < `And` < `Not` < `Rel` < `Add` < `Mul` < `Unary` < `Postfix`/`Atom`. Todos os binários são associativos à esquerda **na AST** (a árvore de derivação pende para a direita; a conversão para AST corrige). | Proposta | Implementada |
 | 24 | A **ordem das alternativas** em `Parser/Grammar.lean` é parte do contrato: `alt = 5` em `Atom` significa "identificador seguido de `AtomRest`". Mudar a ordem quebra a conversão para AST. | Implementação | Fechada |
 
 ## O contrato entre gerador e AST (`Parser/Tree.lean`)
 
 | # | Decisão | Origem | Situação |
 |---|---|---|---|
-| 25 | A saída do motor é uma **árvore de derivação** `ParseTree`, não a AST. A AST é responsabilidade da conversão (Daniel). | Proposta | Implementada |
+| 25 | A saída do motor é uma **árvore de derivação** `ParseTree`, não a AST. A AST é responsabilidade da conversão (`Parser/ToAst.lean`). | Proposta | Implementada |
 | 26 | `leaf tok`: guarda o **`Token` inteiro** (com linha e coluna) para mensagens de erro nas fases seguintes. | Proposta | Implementada |
-| 27 | `node nt alt kids`: não-terminal **por nome (`String`)**, igual à gramática; `alt` = **índice da alternativa dentro do não-terminal** (0 = primeira); ε = `kids` vazio. | Proposta | Fechada (Daniel de acordo) |
-| 28 | Sem árvore de exemplo nem funções de visualização no `Tree.lean`: só o tipo. O Daniel pode imprimir a árvore com o `Repr` derivado. | Caio (enxugar ao necessário) | Fechada |
+| 27 | `node nt alt kids`: não-terminal **por nome (`String`)**, igual à gramática; `alt` = **índice da alternativa dentro do não-terminal** (0 = primeira); ε = `kids` vazio. | Proposta | Fechada |
+| 28 | Sem árvore de exemplo nem funções de visualização no `Tree.lean`: só o tipo. A árvore pode ser impressa com o `Repr` derivado. | Implementação | Fechada |
 
 ## O gerador e o motor
 
@@ -68,8 +66,8 @@ Atualizado em 6 de outubro de 2026.
 | 32 | A tabela recusa a gramática se houver **qualquer conflito** e lista todos (não-terminal, token, produções em disputa). | Proposta | Implementada |
 | 33 | A tabela é indexada por (nome do não-terminal, índice do construtor do token — `TokenKind.ctorIdx`), sem alterar o `TokenKind` do scanner. | Implementação | Implementada |
 | 34 | O motor usa **pilha explícita** (itens "símbolo" e "fechar nó") e não recursão, para ser fiel ao algoritmo dirigido por tabela. O laço é `partial` (como o `scanLoop`): termina porque toda gramática sem conflitos aqui consome token ou desempilha. | Implementação | Implementada |
-| 35 | Erro: **para no primeiro erro** (sem recuperação). A mensagem é **em português**, com linha:coluna, o que foi encontrado e o que era esperado (`1:19: encontrei ';', esperava '='`). Token `error` do scanner vira "caractere não reconhecido". | Caio | Implementada |
-| 36 | Pontos de entrada para o Daniel: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`. | Implementação | Implementada |
+| 35 | Erro: **para no primeiro erro** (sem recuperação). A mensagem é **em português**, com linha:coluna, o que foi encontrado e o que era esperado (`1:19: encontrei ';', esperava '='`). Token `error` do scanner vira "caractere não reconhecido". | Implementação | Implementada |
+| 36 | Pontos de entrada do parser: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`. | Implementação | Implementada |
 | 42 | A lista de esperados de um erro é exatamente a linha da tabela. Num erro dentro de uma cauda nulável (ex.: `return 1 }`), ela fica longa (FIRST ∪ FOLLOW). Mantido para o motor seguir só a tabela. | Implementação | Pode melhorar |
 
 ## A AST e a conversão (`Parser/Ast.lean`, `Parser/ToAst.lean`)

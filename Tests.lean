@@ -48,7 +48,7 @@ def checks : List (String × Bool) := [
   ("rejeita operando faltando em 1:25", rejectsAt "int main() { return a - ; }" 1 25),
   ("rejeita ; faltando em 1:24",        rejectsAt "int main() { int x = 1 }" 1 24),
   ("rejeita lixo depois do programa em 1:16", rejectsAt "int main() { } x" 1 16),
-  -- AST (parte do Daniel)
+  -- AST
   ("AST: a - b - c é (a - b) - c",
     match parseProgram "int main() { return a - b - c; }" with
     | .error _ => false
