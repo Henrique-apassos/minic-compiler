@@ -9,60 +9,79 @@ import Parser.Engine
 -- Uma árvore fora do formato não deveria acontecer (seria bug no motor), então as
 -- funções devolvem `Except String` em vez de travar.
 
-private def malformada (t : ParseTree) : Except String α :=
+private def FormatError (t : ParseTree) : Except String α := -- α β χ é são genéricos como o T
   match t with
-  | .node nt alt _ => throw s!"árvore malformada em {nt}.{alt}"
-  | .leaf tok      => throw s!"árvore malformada no token '{tok.lexeme}'"
+  | .node nt alt _ => throw s!"árvore mal formada em {nt}.{alt}"
+  | .leaf tok => throw s!"árvore mal formada no token '{tok.lexeme}'"
 
-private def lexeme : ParseTree → Except String String
+private def lexeme (t : ParseTree) : Except String String :=
+  match t with
   | .leaf tok => pure tok.lexeme
-  | t => malformada t
+  | _ => FormatError t
 
 /-- `"3.14"` → `3.14`. O scanner só produz `dígitos.dígitos`. -/
 private def parseFloat (s : String) : Except String Float :=
   match s.splitOn "." with
-  | [ip, fp] =>
-    match ip.toNat?, fp.toNat? with
-    | some i, some f => pure (Float.ofScientific (i * 10 ^ fp.length + f) true fp.length)
+  | [int, float] =>
+    match int.toNat?, float.toNat? with
+    | some i, some f => pure (Float.ofScientific (i * 10 ^ float.length + f) true float.length)
     | _, _ => throw s!"número real inválido '{s}'"
   | _ => throw s!"número real inválido '{s}'"
 
-/-- Tira as aspas de um literal de texto, se vierem no lexema. -/
+
+-- Tirar as aspas de um literal de um texto, se vierem no lexame.
 private def unquote (s : String) : String :=
-  if s.length ≥ 2 && s.startsWith "\"" && s.endsWith "\"" then String.ofList (s.toList.drop 1).dropLast else s
+  if s.length >= 2 && s.startsWith "\"" && s.endsWith "\"" then String.ofList ( s.toList.drop 1).dropLast else s
 
--- ── Tipos ──────────────────────────────────────
+-- Tipos
 
-private def toBaseType : ParseTree → Except String MType
+private def toBaseType (t : ParseTree) : Except String MType :=
+  match t with
   | .node "BaseType" 0 _ => pure .int
   | .node "BaseType" 1 _ => pure .float
   | .node "BaseType" 2 _ => pure .bool
   | .node "BaseType" 3 _ => pure .str
   | .node "BaseType" 4 _ => pure .void
-  | t => malformada t
+  | t => FormatError t
 
 /-- `Dims` conta os `[]`: cada um embrulha o tipo em `array`. -/
-private def wrapDims (base : MType) : ParseTree → Except String MType
+private def wrapDims (base : MType) (t : ParseTree) : Except String MType :=
+  match t with
   | .node "Dims" 0 [_, _, rest] => wrapDims (.array base) rest
   | .node "Dims" 1 [] => pure base
-  | t => malformada t
+  | t => FormatError t
 
-def toType : ParseTree → Except String MType
-  | .node "Type" 0 [base, dims] => do wrapDims (← toBaseType base) dims
-  | t => malformada t
+def toType (t : ParseTree) : Except String MType :=
+  match t with
+  | .node "Type" 0 [base, dims] =>
+    match toBaseType base with
+    | .ok b => wrapDims b dims
+    | .error e => throw e
+  | t => FormatError t
 
-/-- Operador binário a partir do token (direto, como `and`/`or`, ou dentro de `RelOp`/`AddOp`/`MulOp`). -/
-private def toBinOp : ParseTree → Except String BinOp
+-- Operador Binário
+
+private def toBinOp (t : ParseTree) : Except String BinOp :=
+  match t with
   | .node _ _ [op] => toBinOp op
-  | t@(.leaf tok) =>
-    match tok.kind with
-    | .plus => pure .add | .minus => pure .sub | .times => pure .mul | .div => pure .div
-    | .eq => pure .eq | .neq => pure .ne | .lt => pure .lt | .le => pure .le
-    | .gt => pure .gt | .ge => pure .ge | .kwAnd => pure .and | .kwOr => pure .or
-    | _ => malformada t
-  | t => malformada t
+  | .leaf tok =>
+    match tok.kind with -- De acordo com o TokenKind do Scanner
+    | .plus => pure .add
+    | .minus => pure .sub
+    | .times => pure .mul
+    | .div => pure .div
+    | .eq => pure .eq
+    | .ge => pure .ge
+    | .lt => pure .lt
+    | .le => pure .le
+    | .neq => pure .ne
+    | .gt => pure .gt
+    | .kwAnd => pure .and
+    | .kwOr => pure .or
+    | _ => FormatError (.leaf tok)
+  | t => FormatError t
 
--- ── Expressões ─────────────────────────────────
+-- Expressões
 
 mutual
 
@@ -95,27 +114,27 @@ def toExpr : ParseTree → Except String (Expr Unit)
   | .node "Atom" 5 [x, .node "AtomRest" 1 []] => do pure (.var (← lexeme x) ())
   | .node "Atom" 6 [_, args, _] => do pure (.array (← toArgs args) ())
   | .node "Atom" 7 [_, e, _]    => toExpr e     -- parênteses somem
-  | t => malformada t
+  | t => FormatError t
 
 /-- Caudas `OrTail`, `AndTail`, `RelTail`, `AddTail`, `MulTail`: pendem para a direita na
     árvore; o acumulador as junta à esquerda. `a - b - c` vira `(a - b) - c`. -/
 def foldTail (acc : Expr Unit) : ParseTree → Except String (Expr Unit)
   | .node _ 0 [op, rhs, rest] => do foldTail (.bin (← toBinOp op) acc (← toExpr rhs) ()) rest
   | .node _ 1 [] => pure acc
-  | t => malformada t
+  | t => FormatError t
 
 /-- `PostTail` e `Indices` (mesmo formato): `a[i][j]` vira `index (index a i) j`. -/
 def foldIndex (acc : Expr Unit) : ParseTree → Except String (Expr Unit)
   | .node _ 0 [_, i, _, rest] => do foldIndex (.index acc (← toExpr i) ()) rest
   | .node _ 1 [] => pure acc
-  | t => malformada t
+  | t => FormatError t
 
 /-- `Args` e `ArgsTail`: viram uma lista, na ordem em que aparecem. -/
 def toArgs : ParseTree → Except String (List (Expr Unit))
   | .node "Args"     0 [e, rest]    => do pure ((← toExpr e) :: (← toArgs rest))
   | .node "ArgsTail" 0 [_, e, rest] => do pure ((← toExpr e) :: (← toArgs rest))
   | .node _ 1 [] => pure []
-  | t => malformada t
+  | t => FormatError t
 
 end
 
@@ -129,7 +148,7 @@ def toStmt : ParseTree → Except String (Stmt Unit)
       let e ← match els with
         | .node "ElseOpt" 0 [_, eb] => some <$> toBlock eb
         | .node "ElseOpt" 1 [] => pure none
-        | t => malformada t
+        | t => FormatError t
       pure (.ifElse (← toExpr c) (← toBlock b) e)
   | .node "Stmt" 2 [.node "WhileStmt" 0 [_, c, b]] => do pure (.while (← toExpr c) (← toBlock b))
   | .node "Stmt" 3 [.node "ReturnStmt" 0 [_, .node "OptExpr" 0 [e], _]] => do
@@ -142,16 +161,16 @@ def toStmt : ParseTree → Except String (Stmt Unit)
       pure (.call (← lexeme x) (← toArgs args))
   | .node "Stmt" 5 [x, .node "IdStmt" 1 [idx, _, e], _] => do
       pure (.assign (← foldIndex (.var (← lexeme x) ()) idx) (← toExpr e))
-  | t => malformada t
+  | t => FormatError t
 
 def toBlock : ParseTree → Except String (Stmt Unit)
   | .node "Block" 0 [_, ss, _] => do pure (.block (← toStmtList ss))
-  | t => malformada t
+  | t => FormatError t
 
 def toStmtList : ParseTree → Except String (List (Stmt Unit))
   | .node "StmtList" 0 [s, rest] => do pure ((← toStmt s) :: (← toStmtList rest))
   | .node "StmtList" 1 [] => pure []
-  | t => malformada t
+  | t => FormatError t
 
 end
 
@@ -159,28 +178,28 @@ end
 
 private def toParam : ParseTree → Except String (MType × String)
   | .node "Param" 0 [ty, x] => do pure (← toType ty, ← lexeme x)
-  | t => malformada t
+  | t => FormatError t
 
 /-- `Params` e `ParamsTail`. -/
 private def toParams : ParseTree → Except String (List (MType × String))
   | .node "Params"     0 [p, rest]    => do pure ((← toParam p) :: (← toParams rest))
   | .node "ParamsTail" 0 [_, p, rest] => do pure ((← toParam p) :: (← toParams rest))
   | .node _ 1 [] => pure []
-  | t => malformada t
+  | t => FormatError t
 
 def toFun : ParseTree → Except String (FunDecl Unit)
   | .node "FunDecl" 0 [ty, x, _, ps, _, body] => do
       pure { name := ← lexeme x, params := ← toParams ps, ret := ← toType ty, body := ← toStmt body }
-  | t => malformada t
+  | t => FormatError t
 
 private def toFunList : ParseTree → Except String (Program Unit)
   | .node "FunList" 0 [f, rest] => do pure ((← toFun f) :: (← toFunList rest))
   | .node "FunList" 1 [] => pure []
-  | t => malformada t
+  | t => FormatError t
 
 def toProgram : ParseTree → Except String (Program Unit)
   | .node "Program" 0 [fs, _] => toFunList fs
-  | t => malformada t
+  | t => FormatError t
 
 -- ══════════════════════════════════════════════
 -- 2. DE PONTA A PONTA: TEXTO → AST
