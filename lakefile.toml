@@ -1,5 +1,6 @@
 name = "minic-compiler"
 defaultTargets = ["minic-compiler", "Parser"]
+testDriver = "parserTests"
 
 [[lean_lib]]
 name = "Scanner"
@@ -22,3 +23,7 @@ name = "Parser"
 [[lean_exe]]
 name = "minic-compiler"
 root = "Main"
+
+[[lean_exe]]
+name = "parserTests"
+root = "Tests"

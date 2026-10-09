@@ -34,6 +34,12 @@ lake build
 lake exe minic-compiler programa.c
 ```
 
+Para rodar os testes do parser (24 verificações: motor e AST):
+
+```bash
+lake test
+```
+
 Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime a AST, com toda operação binária entre parênteses para a associatividade ficar visível. Se houver erro de sintaxe, imprime `erro: linha:coluna: ...` e sai com código 1.
 
 ## Estrutura do projeto
@@ -54,6 +60,7 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime
 │   ├── Engine.lean            # Motor preditivo com pilha explícita
 │   ├── Ast.lean               # Tipos da AST (MType, Expr, Stmt, FunDecl) e impressão
 │   └── ToAst.lean             # Árvore de derivação → AST, e parseProgram (texto → AST)
+├── Tests.lean                 # Testes do parser e da AST (lake test)
 ├── docs/DECISOES.md           # Decisões do projeto e de onde vieram
 ├── Automata/
 │   ├── Common.lean            # Tipos base (State, Symbol, Transition) e predicados
