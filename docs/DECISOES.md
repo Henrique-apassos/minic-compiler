@@ -87,11 +87,3 @@ Atualizado em 6 de outubro de 2026.
 | 53 | Ponto de entrada de ponta a ponta: `parseProgram (src : String) : Except String (Program Unit)`. O erro de sintaxe já sai como a mensagem em português com `linha:coluna`. | Implementação | Implementada |
 | 54 | O `Main.lean` lê o arquivo passado como argumento (ou usa um exemplo), **imprime a AST** e, em erro, imprime `erro: ...` no stderr e sai com código 1. A listagem de tokens do `Main` original saiu. | Proposta (roteiro, passo F) | Implementada — **avisar o Henrique** |
 | 55 | Impressão da AST com **toda operação binária entre parênteses** (`((a - b) - c)`), para a associatividade ficar visível. | Implementação | Implementada |
-
-## Em aberto
-
-- Confirmar a divisão scanner × parser no grupo (7).
-- Avisar o grupo da precedência do `!` (14).
-- Regra de `stringLit` no scanner (20).
-- Avisar o Henrique da troca do `Main.lean` (54).
-- Definir quem faz tipos, interpretador e codegen (10).
