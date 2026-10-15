@@ -27,3 +27,7 @@ root = "Main"
 [[lean_exe]]
 name = "parserTests"
 root = "Tests"
+
+[[lean_exe]]
+name = "gen-parser"
+root = "GenMain"
