@@ -12,17 +12,17 @@ Atualizado em 6 de outubro de 2026.
 
 ## Escopo e organização
 
-| #   | Decisão                                                                                                                                                                              | Origem          | Situação                                                                        |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- | ------------------------------------------------------------------------------- |
-| 1   | O compilador é escrito em **Lean 4** (Lake).                                                                                                                                         | Grupo           | Fechada                                                                         |
-| 2   | Primeiro implementar a linguagem (scanner, parser); semântica (tipos, interpretador) depois da primeira entrega.                                                                     | Grupo           | Fechada                                                                         |
-| 3   | A linguagem é o **miniC** do repositório de referência em Rust. Linguagem, AST e testes vêm de lá; a estratégia de parser não.                                                       | Grupo           | Fechada                                                                         |
-| 4   | O scanner é construído por **regex → NFA (Thompson) → DFA (subconjuntos)**, com maximal munch.                                                                                       | Grupo (votação) | Fechada, implementada                                                           |
-| 58  | A construção do DFA do scanner (`buildLexDFA`) leva **cerca de 4 minutos** e é refeita a cada execução do compilador. A tabela LL(1) e a conversão levam milissegundos.              | Medição         | Resolvida: transições e estados indexados em `HashMap`, ~2 s (PR #3, na `main`) |
-| 5   | O parser é um **gerador LL(1) dirigido por tabela**: a gramática é dado, o gerador calcula FIRST/FOLLOW e a tabela, um motor genérico com pilha a executa. Mesmo desenho do scanner. | Grupo           | Fechada: é um gerador mesmo                                                     |
-| 6   | Reserva: se o tempo apertar, um parser recursivo à mão sobre a mesma gramática garante "algo funcional".                                                                             | Proposta        | Descartada: o parser é o gerador                                                |
-| 9   | Minimização de Hopcroft: opcional, fora da primeira entrega.                                                                                                                         | Grupo           | Fechada                                                                         |
-| 10  | Verificador de tipos, interpretador e codegen: sem dono, depois da primeira entrega.                                                                                                 | Grupo           | Aberta                                                                          |
+| # | Decisão | Origem | Situação |
+|---|---|---|---|
+| 1 | O compilador é escrito em **Lean 4** (Lake). | Grupo | Fechada |
+| 2 | Primeiro implementar a linguagem (scanner, parser); semântica (tipos, interpretador) depois da primeira entrega. | Grupo | Fechada |
+| 3 | A linguagem é o **miniC** do repositório de referência em Rust. Linguagem, AST e testes vêm de lá; a estratégia de parser não. | Grupo | Fechada |
+| 4 | O scanner é construído por **regex → NFA (Thompson) → DFA (subconjuntos)**, com maximal munch. | Grupo (votação) | Fechada, implementada |
+| 58 | A construção do DFA do scanner (`buildLexDFA`) leva **cerca de 4 minutos** e é refeita a cada execução do compilador. A tabela do parser e a conversão levam milissegundos. | Medição | Resolvida: transições e estados indexados em `HashMap`, ~2 s (PR #3, na `main`) |
+| 5 | O parser é um **gerador LR(1) dirigido por tabela**: a gramática é dado, o gerador calcula FIRST, o autômato LR(1) canônico e as tabelas ACTION/GOTO, e um motor shift-reduce genérico com pilha as executa. Mesmo desenho do scanner. Substituiu o gerador LL(1) da primeira versão. | Grupo | Fechada: é um gerador mesmo |
+| 6 | Reserva: se o tempo apertar, um parser recursivo à mão sobre a mesma gramática garante "algo funcional". | Proposta | Descartada: o parser é o gerador |
+| 9 | Minimização de Hopcroft: opcional, fora da primeira entrega. | Grupo | Fechada |
+| 10 | Verificador de tipos, interpretador e codegen: sem dono, depois da primeira entrega. | Grupo | Aberta |
 
 ## A linguagem
 
@@ -41,12 +41,12 @@ Atualizado em 6 de outubro de 2026.
 
 ## Gramática
 
-| #   | Decisão                                                                                                                                                                                                                                                            | Origem        | Situação     |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------- | ------------ |
-| 21  | A gramática é a do Rust reescrita para LL(1): laços viram **caudas recursivas à direita com ε** (`AddTail`, `MulTail`...) e prefixos comuns são **fatorados** (`ID IdStmt`, `ID AtomRest`).                                                                        | Proposta      | Implementada |
-| 22  | Tamanho: **42 não-terminais, 85 produções, 0 conflitos, 313 células na tabela** (verificado pelo próprio gerador).                                                                                                                                                 | Implementação | Verificada   |
-| 23  | Um nível de não-terminal por nível de precedência: `Or` < `And` < `Not` < `Rel` < `Add` < `Mul` < `Unary` < `Postfix`/`Atom`. Todos os binários são associativos à esquerda **na AST** (a árvore de derivação pende para a direita; a conversão para AST corrige). | Proposta      | Implementada |
-| 24  | A **ordem das alternativas** em `Parser/Grammar.lean` é parte do contrato: `alt = 5` em `Atom` significa "identificador seguido de `AtomRest`". Mudar a ordem quebra a conversão para AST.                                                                         | Implementação | Fechada      |
+| # | Decisão | Origem | Situação |
+|---|---|---|---|
+| 21 | A gramática é a do Rust reescrita para LL(1): laços viram **caudas recursivas à direita com ε** (`AddTail`, `MulTail`...) e prefixos comuns são **fatorados** (`ID IdStmt`, `ID AtomRest`). Com o parser LR(1) ela foi mantida (LL(1) ⊂ LR(1)), para não mudar a árvore de derivação nem a conversão para AST. | Proposta | Implementada |
+| 22 | Tamanho: **42 não-terminais, 85 produções, 0 conflitos; 448 estados LR(1), 3526 ações e 811 gotos** (verificado pelo próprio gerador). | Implementação | Verificada |
+| 23 | Um nível de não-terminal por nível de precedência: `Or` < `And` < `Not` < `Rel` < `Add` < `Mul` < `Unary` < `Postfix`/`Atom`. Todos os binários são associativos à esquerda **na AST** (a árvore de derivação pende para a direita; a conversão para AST corrige). | Proposta | Implementada |
+| 24 | A **ordem das alternativas** em `Parser/Grammar.lean` é parte do contrato: `alt = 5` em `Atom` significa "identificador seguido de `AtomRest`". Mudar a ordem quebra a conversão para AST. | Implementação | Fechada |
 
 ## O contrato entre gerador e AST (`Parser/Tree.lean`)
 
@@ -59,17 +59,17 @@ Atualizado em 6 de outubro de 2026.
 
 ## O gerador e o motor
 
-| #   | Decisão                                                                                                                                                                                                                                                                                  | Origem        | Situação     |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------------ |
-| 29  | Nulável, FIRST e FOLLOW por **ponto fixo** (repetir até nada mudar), como o `epsilonClosure` do scanner.                                                                                                                                                                                 | Proposta      | Implementada |
-| 30  | O ponto fixo usa **combustível com limite provado suficiente** (não-terminais × (terminais + 1) + 1), em vez de `partial`.                                                                                                                                                               | Implementação | Implementada |
-| 31  | `FOLLOW(início)` começa com `eof`. No miniC o próprio `Program` consome o `eof`.                                                                                                                                                                                                         | Implementação | Implementada |
-| 32  | A tabela recusa a gramática se houver **qualquer conflito** e lista todos (não-terminal, token, produções em disputa).                                                                                                                                                                   | Proposta      | Implementada |
-| 33  | A tabela é indexada por (nome do não-terminal, índice do construtor do token — `TokenKind.ctorIdx`), sem alterar o `TokenKind` do scanner.                                                                                                                                               | Implementação | Implementada |
-| 34  | O motor usa **pilha explícita** (itens "símbolo" e "fechar nó") e não recursão, para ser fiel ao algoritmo dirigido por tabela. O laço é `partial` (como o `scanLoop`): termina porque toda gramática sem conflitos aqui consome token ou desempilha.                                    | Implementação | Implementada |
-| 35  | Erro: **para no primeiro erro** (sem recuperação). A mensagem é **em português**, com linha:coluna, o que foi encontrado e o que era esperado (`1:19: encontrei ';', esperava '='`). Token `error` do scanner vira "caractere não reconhecido".                                          | Implementação | Implementada |
-| 36  | Pontos de entrada do parser: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`.                                                                                                                                                                                           | Implementação | Implementada |
-| 42  | A lista de esperados de um erro vem da **pilha do motor**: FIRST de cada símbolo, do topo para baixo, enquanto ele puder ser vazio. Antes vinha da linha da tabela, que incluía o FOLLOW de todos os contextos (depois de `int x = 1`, listava `)`, `]`, `,` e `{`, que ali não servem). | Implementação | Implementada |
+| # | Decisão | Origem | Situação |
+|---|---|---|---|
+| 29 | Nulável e FIRST (e FOLLOW, que o LR(1) não usa mais) por **ponto fixo** (repetir até nada mudar), como o `epsilonClosure` do scanner. | Proposta | Implementada |
+| 30 | O ponto fixo usa **combustível com limite provado suficiente** (não-terminais × (terminais + 1) + 1), em vez de `partial`. O fecho LR(1) também (núcleos × (terminais + 1) + \|kernel\| + 1); a busca de estados tem um teto de 100000 e falha com erro se passar. | Implementação | Implementada |
+| 31 | A gramática é **aumentada** com `S' → Program`, cujo item inicial tem lookahead `eof`; o aceite é `S' → Program •` com `eof`. No miniC o próprio `Program` consome o `eof`, e o motor lê `eof` de novo depois do fim. | Implementação | Implementada |
+| 32 | **LR(1) canônico** (não LALR): estados são conjuntos de itens `A → α • β, L`, identificados pelo kernel; lookaheads de mesmo núcleo ficam numa máscara de bits. A tabela recusa a gramática se houver **qualquer conflito** (shift/reduce ou reduce/reduce) e lista todos (estado, token, ações em disputa). | Proposta | Implementada |
+| 33 | ACTION é indexada por (estado, índice do construtor do token — `TokenKind.ctorIdx`) e GOTO por (estado, nome do não-terminal), sem alterar o `TokenKind` do scanner. | Implementação | Implementada |
+| 34 | O motor é **shift-reduce com pilha explícita** (estados e subárvores) e não recursão, fiel ao algoritmo dirigido por tabela. Reduce monta o nó `lhs.alt` com os \|α\| valores do topo, então a árvore é a mesma do motor LL(1) anterior. O laço é `partial` (como o `scanLoop`): cada shift consome um token e, sem conflitos, só cabem finitas reduções entre dois shifts. | Implementação | Implementada |
+| 35 | Erro: **para no primeiro erro** (sem recuperação). A mensagem é **em português**, com linha:coluna, o que foi encontrado e o que era esperado (`1:19: encontrei ';', esperava '='`). Token `error` do scanner vira "caractere não reconhecido". | Implementação | Implementada |
+| 36 | Pontos de entrada do parser: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`. | Implementação | Implementada |
+| 42 | A lista de esperados de um erro é o conjunto de tokens com ação no **estado do topo**. O LR(1) canônico nunca reduz com um token inválido, então o erro aparece no estado do último shift e a lista é exata (depois de `int x = 1`, não aparecem `)`, `]`, `,` nem `{`). | Implementação | Implementada |
 
 ## A AST e a conversão (`Parser/Ast.lean`, `Parser/ToAst.lean`)
 

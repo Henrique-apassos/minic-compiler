@@ -43,55 +43,46 @@ def ParseError.message (e : ParseError) : String :=
     pos ++ (if exp.isEmpty then msg else msg ++ ", esperava " ++ joinOu exp)
 
 -- ══════════════════════════════════════════════
--- 2. MOTOR PREDITIVO COM PILHA EXPLÍCITA
+-- 2. MOTOR LR(1) (SHIFT-REDUCE) COM PILHA EXPLÍCITA
 -- ══════════════════════════════════════════════
--- Pilha de trabalho: símbolos a reconhecer e marcadores `close`, que dizem
--- "os últimos `n` valores formam o nó `nt.alt`". Pilha de valores: as subárvores prontas.
--- Cada passo olha só o topo e o token atual: sem retrocesso.
+-- Pilha de estados e pilha de valores (as subárvores prontas), lado a lado.
+-- Cada passo olha o estado do topo e o token atual em ACTION:
+-- * shift s  : empilha o estado `s` e a folha do token, avança um token;
+-- * reduce p : desempilha |rhs| estados e valores, monta o nó `lhs.alt` com eles
+--              e empilha GOTO[estado do topo, lhs];
+-- * accept   : a pilha de valores tem a árvore do símbolo inicial.
+-- Sem retrocesso. Como o LR(1) canônico nunca reduz com um token inválido, o erro aparece
+-- no estado do último shift, e os esperados são exatamente as ações desse estado.
 
-private inductive Item where
-  | sym   (s : Sym)
-  | close (nt : String) (alt : Nat) (n : Nat)
-
-/-- O que pode vir agora, segundo a própria pilha: FIRST de cada símbolo, do topo para baixo,
-    enquanto eles puderem ser vazios. Mais exato que a linha da tabela, que inclui o FOLLOW de
-    todos os contextos (ex.: depois de `int x = 1`, só `;` fecha a expressão; `)` não). -/
-private def expectedAt (tbl : LL1Table) (work : List Item) : List TokenKind :=
-  let rec go : List Item → TokSet → TokSet
-    | [], acc => acc
-    | .close .. :: rest, acc => go rest acc
-    | .sym (.t k) :: _, acc => acc.add k
-    | .sym (.nt n) :: rest, acc =>
-      let acc := TokSet.union acc (tbl.analysis.firstOf n)
-      if tbl.analysis.isNullable n then go rest acc else acc
-  let set := go work []
-  tbl.grammar.terminals.filter set.contains
-
--- Termina: numa gramática LL(1) sem conflitos não há recursão à esquerda, então entre
--- dois consumos de token só cabem finitas expansões; e cada `close` encolhe a pilha.
-private partial def loop (tbl : LL1Table) (toks : Array Token) (i : Nat)
-    (work : List Item) (vals : List ParseTree) : Except ParseError ParseTree :=
+-- Termina: cada shift consome um token, e entre dois shifts só cabem finitas reduções
+-- (a gramática não tem conflitos, logo não é ambígua nem tem ciclos A ⇒+ A).
+private partial def loop (tbl : LR1Table) (toks : Array Token) (i : Nat)
+    (states : List Nat) (vals : List ParseTree) : Except ParseError ParseTree :=
   -- além do fim, o último token (o `eof` que o scanner sempre coloca)
   let cur := toks[i]?.getD (toks.back?.getD { kind := .eof, lexeme := "", line := 1, column := 1 })
-  match work with
-  | [] =>
-      match vals with
-      | [tree] => .ok tree
-      | _ => .error { found := cur, expected := [] }   -- impossível: cada `close` deixa um valor
-  | .sym (.t k) :: rest =>
-      if cur.kind == k then loop tbl toks (i + 1) rest (.leaf cur :: vals)
-      else .error { found := cur, expected := [k] }
-  | .sym (.nt a) :: rest =>
-      match tbl.lookup a cur.kind with
-      | none => .error { found := cur, expected := expectedAt tbl work }
-      | some p => loop tbl toks i (p.rhs.map .sym ++ .close a p.alt p.rhs.length :: rest) vals
-  | .close a alt n :: rest =>
+  let s := states.headD 0
+  match tbl.actionAt s cur.kind with
+  | none => .error { found := cur, expected := tbl.expected s }
+  | some (.shift t) => loop tbl toks (i + 1) (t :: states) (.leaf cur :: vals)
+  | some (.reduce p) =>
+    match tbl.grammar.prods[p]? with
+    | none => .error { found := cur, expected := [] }     -- impossível: `p` vem da própria gramática
+    | some prod =>
+      let n := prod.rhs.length
+      let states := states.drop n
       -- `vals` está invertida: os `n` primeiros são os filhos, do último para o primeiro
-      loop tbl toks i rest (.node a alt (vals.take n).reverse :: vals.drop n)
+      let node := ParseTree.node prod.lhs prod.alt (vals.take n).reverse
+      match tbl.gotoAt (states.headD 0) prod.lhs with
+      | some t => loop tbl toks i (t :: states) (node :: vals.drop n)
+      | none => .error { found := cur, expected := [] }   -- impossível: houve shift de `lhs` aqui
+  | some .accept =>
+    match vals with
+    | [tree] => .ok tree
+    | _ => .error { found := cur, expected := [] }        -- impossível: só aceita com S' → S •
 
-/-- Analisa os tokens a partir do símbolo inicial da gramática. -/
-def parse (tbl : LL1Table) (toks : Array Token) : Except ParseError ParseTree :=
-  loop tbl toks 0 [.sym (.nt tbl.grammar.start)] []
+/-- Analisa os tokens a partir do estado inicial do autômato. -/
+def parse (tbl : LR1Table) (toks : Array Token) : Except ParseError ParseTree :=
+  loop tbl toks 0 [0] []
 
 -- ══════════════════════════════════════════════
 -- 3. ATALHOS PARA O MINIC

@@ -205,7 +205,7 @@ def toProgram : ParseTree → Except String (Program Unit)
 -- 2. DE PONTA A PONTA: TEXTO → AST
 -- ══════════════════════════════════════════════
 
-/-- Scanner, motor LL(1) e conversão. Erro de sintaxe sai como `linha:coluna: ...`. -/
+/-- Scanner, motor LR(1) e conversão. Erro de sintaxe sai como `linha:coluna: ...`. -/
 def parseProgram (src : String) : Except String (Program Unit) :=
   match parseSource src with
   | .error e => throw e.message

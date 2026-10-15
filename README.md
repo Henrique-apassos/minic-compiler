@@ -2,16 +2,16 @@
 
 Compilador para **Mini-C**, um subconjunto da linguagem C, escrito em **Lean 4**.
 
-O projeto tem a **análise léxica (scanner)**, o **gerador de parser LL(1)** com seu motor, e a **AST** com a conversão da árvore de derivação. O executável lê um programa e imprime a AST. O scanner foi construído do zero sobre uma pequena biblioteca de autômatos: as regras léxicas são expressões regulares, convertidas em NFA pelo algoritmo de Thompson e depois em DFA pela construção de subconjuntos. Por fim, o DFA é executado com *maximal munch* sobre o código-fonte.
+O projeto tem a **análise léxica (scanner)**, o **gerador de parser LR(1)** com seu motor, e a **AST** com a conversão da árvore de derivação. O executável lê um programa e imprime a AST. O scanner foi construído do zero sobre uma pequena biblioteca de autômatos: as regras léxicas são expressões regulares, convertidas em NFA pelo algoritmo de Thompson e depois em DFA pela construção de subconjuntos. Por fim, o DFA é executado com *maximal munch* sobre o código-fonte.
 
 ```
 Regras (Regex × TokenKind) ──Thompson──▶ NFA combinado ──Subset construction──▶ DFA ──maximal munch──▶ Tokens
 ```
 
-O parser segue o mesmo desenho: a gramática é escrita como dado, o gerador calcula nulável, FIRST e FOLLOW por ponto fixo e monta a tabela LL(1), e um motor genérico com pilha explícita lê os tokens e devolve a árvore de derivação.
+O parser segue o mesmo desenho: a gramática é escrita como dado, o gerador calcula nulável e FIRST por ponto fixo, monta o autômato LR(1) canônico e as tabelas ACTION/GOTO, e um motor shift-reduce genérico com pilha explícita lê os tokens e devolve a árvore de derivação.
 
 ```
-Gramática (produções) ──ponto fixo──▶ nulável/FIRST/FOLLOW ──▶ tabela LL(1) ──motor com pilha──▶ Árvore de derivação
+Gramática (produções) ──ponto fixo──▶ nulável/FIRST ──▶ autômato LR(1) ──▶ ACTION/GOTO ──shift-reduce──▶ Árvore de derivação
 ```
 
 Por fim, a árvore de derivação é convertida na AST, que guarda só o significado do programa:
@@ -34,7 +34,7 @@ lake build
 lake exe minic-compiler programa.c
 ```
 
-Para rodar os testes do parser (24 verificações: motor e AST):
+Para rodar os testes do parser (27 verificações: gerador, motor e AST):
 
 ```bash
 lake test
@@ -55,10 +55,10 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime
 ├── Parser.lean                # Raiz da biblioteca Parser
 ├── Parser/
 │   ├── Tree.lean              # ParseTree: o contrato entre o motor e a conversão para AST
-│   ├── Grammar.lean           # Sym, Production, Grammar e a gramática LL(1) do miniC
-│   ├── First.lean             # Nulável, FIRST e FOLLOW por ponto fixo
-│   ├── Table.lean             # Tabela LL(1) com detecção de conflitos
-│   ├── Engine.lean            # Motor preditivo com pilha explícita
+│   ├── Grammar.lean           # Sym, Production, Grammar e a gramática do miniC
+│   ├── First.lean             # Nulável e FIRST (e FOLLOW) por ponto fixo
+│   ├── Table.lean             # Autômato LR(1) e tabelas ACTION/GOTO, com detecção de conflitos
+│   ├── Engine.lean            # Motor shift-reduce com pilha explícita
 │   ├── Ast.lean               # Tipos da AST (MType, Expr, Stmt, FunDecl) e impressão
 │   └── ToAst.lean             # Árvore de derivação → AST, e parseProgram (texto → AST)
 ├── Tests.lean                 # Testes do parser e da AST (lake test)
@@ -104,12 +104,12 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime
   - `longestMatch` implementa o **maximal munch**: avança o DFA o máximo possível e volta ao último estado de aceitação. Por isso `intx` vira `id` e `<=` vira `le`, não `lt` + `assign`.
   - `scan` ignora espaços em branco e comentários de linha (`//`) e conta linha e coluna. Um caractere não reconhecido gera um token `error` e a varredura continua; o último token é sempre `eof`.
 
-### 3. Gerador de parser LL(1) (`Parser/`)
+### 3. Gerador de parser LR(1) (`Parser/`)
 
-- **Gramática como dado** (`Grammar.lean`). A gramática do miniC, extraída do parser Rust de referência e reescrita para LL(1): laços viram caudas recursivas à direita com ε (`AddTail`, `MulTail`...) e prefixos comuns são fatorados (`ID IdStmt`, `ID AtomRest`). São **42 não-terminais e 85 produções**. A ordem das alternativas faz parte do contrato com a conversão para AST.
-- **Nulável, FIRST e FOLLOW** (`First.lean`). Calculados por ponto fixo, com um combustível limitado que basta (sem `partial`).
-- **Tabela LL(1)** (`Table.lean`). PREDICT(A → α) = FIRST(α), mais FOLLOW(A) se α é nulável. Se duas produções caem na mesma célula, a gramática é recusada com a lista de conflitos. A do miniC tem **0 conflitos** e 313 células.
-- **Motor** (`Engine.lean`). Uma pilha de trabalho (símbolos e marcadores de "fechar nó") e uma pilha de valores. Não há retrocesso: cada passo olha só o topo e o token atual. Para no primeiro erro, com uma mensagem em português: `1:19: encontrei ';', esperava '='`.
+- **Gramática como dado** (`Grammar.lean`). A gramática do miniC, extraída do parser Rust de referência com laços como caudas recursivas à direita com ε (`AddTail`, `MulTail`...) e prefixos comuns fatorados (`ID IdStmt`, `ID AtomRest`). Essa forma vem da versão LL(1) do parser; como toda gramática LL(1) também é LR(1), ela foi mantida, e a árvore de derivação não mudou. São **42 não-terminais e 85 produções**. A ordem das alternativas faz parte do contrato com a conversão para AST.
+- **Nulável e FIRST** (`First.lean`). Calculados por ponto fixo, com um combustível limitado que basta (sem `partial`).
+- **Autômato LR(1) canônico** (`Table.lean`). Itens `A → α • β, L`; o fecho acrescenta `B → • γ` com lookahead FIRST(β), mais `L` se β é nulável. Os estados são identificados pelo kernel, e a gramática é aumentada com `S' → Program`. Daí saem ACTION (shift, reduce, accept) e GOTO. Se uma célula de ACTION tiver duas ações (shift/reduce ou reduce/reduce), a gramática é recusada com a lista de conflitos. A do miniC tem **0 conflitos**, **448 estados**, 3526 ações e 811 gotos.
+- **Motor** (`Engine.lean`). Shift-reduce, com uma pilha de estados e uma pilha de valores (subárvores). Shift empilha a folha do token; reduce desempilha |α| valores, monta o nó e segue GOTO. Não há retrocesso: cada passo olha só o estado do topo e o token atual. O LR(1) canônico nunca reduz com um token inválido, então os esperados do erro são exatamente as ações do estado onde ele aparece. Para no primeiro erro, com uma mensagem em português: `1:19: encontrei ';', esperava '='`.
 
 - **Árvore de derivação** (`Tree.lean`). `leaf tok` guarda o token inteiro; `node nt alt kids` guarda o não-terminal, a alternativa usada (0 = primeira) e os filhos (ε = sem filhos).
 - **Pontos de entrada**: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`.
@@ -184,7 +184,7 @@ Roda `Tests/Main.lean` (71 testes, 3 pendentes em 8 de outubro de 2026). Os caso
 - Comentários de bloco (`/* ... */`) não são tratados.
 - `epsilonClosure`, `subsetLoop` e `scanLoop` são `partial`, ou seja, não têm prova de terminação.
 - Não há prova formal de que o DFA gerado é equivalente ao NFA ou à regex. As estruturas verificadas `NFA`/`DFA` e o pipeline `Raw*` ainda não estão conectados.
-- O motor de parser é `partial`; o ponto fixo de FIRST/FOLLOW não é.
+- O motor de parser é `partial`; o ponto fixo de FIRST/FOLLOW e o fecho LR(1) não são.
 - Próximas fases do compilador: análise semântica (tipos), interpretador e geração de código.
 
 As decisões de projeto, com origem e o que ainda precisa ser confirmado, estão em [docs/DECISOES.md](docs/DECISOES.md).

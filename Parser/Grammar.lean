@@ -51,11 +51,13 @@ private abbrev N := Sym.nt
 private abbrev T := Sym.t
 
 -- ══════════════════════════════════════════════
--- 2. GRAMÁTICA DO MINIC (forma LL(1))
+-- 2. GRAMÁTICA DO MINIC
 -- ══════════════════════════════════════════════
 -- Extraída do parser Rust de referência e reescrita para LL(1):
 -- laços viram caudas recursivas à direita com ε, e prefixos comuns são fatorados
 -- (`ID IdStmt` e `ID AtomRest` resolvem o que pediria 2 tokens de lookahead).
+-- O parser agora é LR(1); toda gramática LL(1) também é LR(1), então esta forma foi mantida
+-- e a árvore de derivação continua a mesma.
 -- 42 não-terminais, 85 produções. A ORDEM DAS ALTERNATIVAS É O CONTRATO com a conversão para AST.
 
 def minicGrammar : Grammar := mkGrammar "Program" [

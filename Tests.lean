@@ -35,11 +35,30 @@ private def stmtOf (s : String) : String :=
   | .ok _ => "?"
   | .error m => "erro: " ++ m
 
+/-- Gramáticas pequenas para testar o gerador fora do miniC. -/
+private def leftRec : Grammar := mkGrammar "S" [
+  ("S", [[.nt "E", .t .eof]]),
+  ("E", [[.nt "E", .t .plus, .t .numInt], [.t .numInt]])]
+
+private def ambiguous : Grammar := mkGrammar "S" [
+  ("S", [[.nt "E", .t .eof]]),
+  ("E", [[.nt "E", .t .plus, .nt "E"], [.t .numInt]])]
+
+private def toks (ks : List TokenKind) : Array Token :=
+  (ks ++ [TokenKind.eof]).toArray.mapIdx fun i k => { kind := k, lexeme := "", line := 1, column := i + 1 }
+
 def checks : List (String × Bool) := [
   ("gramática: 42 não-terminais e 85 produções",
     minicGrammar.nonterminals.length == 42 && minicGrammar.prods.size == 85),
-  ("tabela LL(1) sem conflitos",
+  ("tabela LR(1) sem conflitos",
     match buildTable minicGrammar with | .ok _ => true | .error _ => false),
+  ("LR(1) aceita recursão à esquerda: E → E + n | n",
+    match buildTable leftRec with
+    | .error _ => false
+    | .ok t => (parse t (toks [.numInt, .plus, .numInt, .plus, .numInt])).isOk
+               && !(parse t (toks [.numInt, .plus])).isOk),
+  ("LR(1) acusa conflito na gramática ambígua E → E + E | n",
+    match buildTable ambiguous with | .ok _ => false | .error (.conflicts cs) => !cs.isEmpty | .error _ => false),
   ("aceita o programa de exemplo",
     accepts "int fatorial(int n) {\n  // comentário\n  if (n <= 1) { return 1; }\n  float x = 3.14;\n  return n * fatorial(n - 1);\n}"),
   ("aceita while, if/else, arrays e chamadas",
