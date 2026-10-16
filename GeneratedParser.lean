@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- FICHEIRO GERADO AUTOMATICAMENTE POR `lake exe gen-parser`
+-- ARQUIVO GERADO AUTOMATICAMENTE POR `lake exe gen-parser`
 -- Estados LR(1): 448 | Produções: 85 | ACTION: 3526 | GOTO: 811
 -- NÃO EDITE MANUALMENTE.
 -- ════════════════════════════════════════════════════════════════════

@@ -144,3 +144,18 @@ def lexicalRules : List (Regex × TokenKind) := [
   (idRegex, TokenKind.id)
 
 ]
+
+/-- Como o token aparece para o usuário nas mensagens de erro. -/
+def TokenKind.describe : TokenKind → String
+  | .kwInt => "'int'" | .kwFloat => "'float'" | .kwBool => "'bool'" | .kwStr => "'str'"
+  | .kwVoid => "'void'" | .kwIf => "'if'" | .kwElse => "'else'" | .kwWhile => "'while'"
+  | .kwReturn => "'return'" | .kwTrue => "'true'" | .kwFalse => "'false'"
+  | .kwAnd => "'and'" | .kwOr => "'or'"
+  | .id => "identificador" | .numInt => "número inteiro" | .numFloat => "número real"
+  | .stringLit => "texto"
+  | .plus => "'+'" | .minus => "'-'" | .times => "'*'" | .div => "'/'"
+  | .eq => "'=='" | .neq => "'!='" | .lt => "'<'" | .le => "'<='" | .gt => "'>'" | .ge => "'>='"
+  | .not => "'!'" | .assign => "'='"
+  | .lparen => "'('" | .rparen => "')'" | .lbrace => "'{'" | .rbrace => "'}'"
+  | .lbracket => "'['" | .rbracket => "']'" | .comma => "','" | .semi => "';'"
+  | .eof => "fim do arquivo" | .error => "caractere não reconhecido"
