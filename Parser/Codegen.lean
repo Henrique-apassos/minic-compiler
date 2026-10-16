@@ -3,8 +3,6 @@ import Parser.Table
 -- ══════════════════════════════════════════════
 -- GERADOR DE CÓDIGO DO PARSER LR(1)
 -- ══════════════════════════════════════════════
--- Serializa `LR1Table` num arquivo `.lean` autônomo que recebe `String` (ou `Array Token`)
--- e devolve `Except String (Program Unit)`, pronto para a fase de Análise de Tipos.
 
 private def emitTokenKind (k : TokenKind) : String :=
   let s := reprStr k
@@ -12,136 +10,105 @@ private def emitTokenKind (k : TokenKind) : String :=
   | _ :: tail => "." ++ ".".intercalate tail
   | _ => s
 
-private def emitAction (a : Action) : String :=
-  match a with
+private def emitSym : Sym → String
+  | .t k  => s!".t {emitTokenKind k}"
+  | .nt n => s!".nt {n.quote}"
+
+private def emitAction : Action → String
   | .shift s  => s!".shift {s}"
   | .reduce p => s!".reduce {p}"
   | .accept   => ".accept"
 
-/-- Gera o código-fonte completo de `Parser/Generated.lean` a partir da tabela LR(1). -/
-def generateParserCode (tbl : LR1Table) : String :=
-  -- 1. Produções: (lhs, alt, |rhs|)
-  let prodsCode := tbl.grammar.prods.toList.map fun p =>
-    s!"  ({p.lhs.quote}, {p.alt}, {p.rhs.length})"
+/-- Divide uma lista em blocos de tamanho máximo `size`. -/
+private def chunkList (size : Nat) (xs : List String) : List (List String) :=
+  let (chunks, cur, _) := xs.foldl (init := ([], [], 0)) fun (chunks, cur, count) x =>
+    if count + 1 >= size then
+      ((x :: cur).reverse :: chunks, [], 0)
+    else
+      (chunks, x :: cur, count + 1)
+  if cur.isEmpty then chunks.reverse else (cur.reverse :: chunks).reverse
 
-  -- 2. Entradas de ACTION ordenadas por (estado, tokIdx)
+/-- Gera definições `private def` separadas para cada bloco de 40 entradas,
+    evitando árvores LCNF profundas numa única definição. -/
+private def emitChunkDefs (baseName : String) (elemType : String) (entries : List String) :
+    List String × String :=
+  let chunks := chunkList 40 entries
+  let defs := (chunks.zipIdx).map fun (c, i) =>
+    let body := ",\n".intercalate (c.map ("  " ++ ·))
+    s!"private def {baseName}_{i} : List ({elemType}) := [\n{body}\n]"
+  let names := ", ".intercalate ((chunks.zipIdx).map fun (_, i) => s!"{baseName}_{i}")
+  (defs, s!"[{names}]")
+
+/-- Gera o código-fonte Lean completo do parser a partir de uma `LR1Table`. -/
+def emitParserCode (tbl : LR1Table) : String :=
+  -- 1. Produções da gramática
+  let prodsLines := tbl.grammar.prods.toList.map fun p =>
+    let rhsStr := ", ".intercalate (p.rhs.map emitSym)
+    s!"    \{ id := {p.id}, lhs := {p.lhs.quote}, alt := {p.alt}, rhs := [{rhsStr}] }"
+
+  -- 2. Entradas da tabela ACTION em definições separadas
   let actionsSorted := tbl.action.toArray.qsort fun ((s1, k1), _) ((s2, k2), _) =>
     s1 < s2 || (s1 == s2 && k1 < k2)
-  let actionsCode := actionsSorted.toList.map fun ((s, k), act) =>
-    s!"  (({s}, {k}), {emitAction act})"
+  let actionLines := actionsSorted.toList.map fun ((s, k), act) =>
+    s!"(({s}, {k}), {emitAction act})"
+  let (actionDefs, actionListRef) := emitChunkDefs "actionChunk" "(Nat × Nat) × Action" actionLines
 
-  -- 3. Entradas de GOTO ordenadas por (estado, não-terminal)
+  -- 3. Entradas da tabela GOTO em definições separadas
   let gotosSorted := tbl.goto.toArray.qsort fun ((s1, n1), _) ((s2, n2), _) =>
     s1 < s2 || (s1 == s2 && n1 < n2)
-  let gotosCode := gotosSorted.toList.map fun ((s, n), dst) =>
-    s!"  (({s}, {n.quote}), {dst})"
+  let gotoLines := gotosSorted.toList.map fun ((s, n), dst) =>
+    s!"(({s}, {n.quote}), {dst})"
+  let (gotoDefs, gotoListRef) := emitChunkDefs "gotoChunk" "(Nat × String) × Nat" gotoLines
 
-  -- 4. Tokens esperados por estado (para diagnóstico de erro sintático)
-  let expectedCode := (List.range tbl.states).map fun s =>
-    let toks := (tbl.expected s).map emitTokenKind
-    s!"  #[{", ".intercalate toks}]"
-
-  String.intercalate "\n" [
+  String.intercalate "\n" ([
     "-- ════════════════════════════════════════════════════════════════════",
-    "-- ARQUIVO GERADO AUTOMATICAMENTE PELO GERADOR DE PARSER LR(1)",
-    s!"-- Estados: {tbl.states} | Produções: {tbl.grammar.prods.size} | Ações: {tbl.action.size} | Gotos: {tbl.goto.size}",
+    "-- FICHEIRO GERADO AUTOMATICAMENTE POR `lake exe gen-parser`",
+    s!"-- Estados LR(1): {tbl.states} | Produções: {tbl.grammar.prods.size} | ACTION: {tbl.action.size} | GOTO: {tbl.goto.size}",
     "-- NÃO EDITE MANUALMENTE.",
     "-- ════════════════════════════════════════════════════════════════════",
     "import Std.Data.HashMap",
-    "import Scanner.Lexer",
-    "import Parser.Tree",
-    "import Parser.Ast",
+    "import Parser.Engine",
+    "import Parser.ToAst",
+    "",
+    "set_option maxRecDepth 100000",
     "",
     "namespace GeneratedParser",
     "",
-    "inductive Action where",
-    "  | shift  (s : Nat)",
-    "  | reduce (p : Nat)",
-    "  | accept",
-    "  deriving Repr, BEq, Inhabited",
+    "private def mkMap {α β : Type} [BEq α] [Hashable α] (chunks : List (List (α × β))) : Std.HashMap α β :=",
+    "  chunks.foldl (fun m chunk => chunk.foldl (fun m (k, v) => m.insert k v) m) {}",
     "",
-    "/-- Produções da gramática: `(lhs, alt, rhsLen)` indexadas pelo ID da produção. -/",
-    "def prods : Array (String × Nat × Nat) := #[",
-    ",\n".intercalate prodsCode,
-    "]",
+    "/-- Gramática embutida no código gerado. -/",
+    "def generatedGrammar : Grammar := {",
+    s!"  start := {tbl.grammar.start.quote},",
+    "  prods := #[",
+    ",\n".intercalate prodsLines,
+    "  ]",
+    "}",
+    ""
+  ] ++ actionDefs ++ [""] ++ gotoDefs ++ [
     "",
-    "/-- Tabela ACTION[(estado, tokIdx)] gerada pelo autômato LR(1) canônico. -/",
-    "def actionMap : Std.HashMap (Nat × Nat) Action := Std.HashMap.ofList [",
-    ",\n".intercalate actionsCode,
-    "]",
+    "/-- Tabela LR(1) canónica pré-calculada em código-fonte. -/",
+    "def generatedTable : LR1Table := {",
+    "  grammar := generatedGrammar,",
+    s!"  states  := {tbl.states},",
+    s!"  action  := mkMap {actionListRef},",
+    s!"  goto    := mkMap {gotoListRef}",
+    "}",
     "",
-    "/-- Tabela GOTO[(estado, não-terminal)] gerada pelo autômato LR(1) canônico. -/",
-    "def gotoMap : Std.HashMap (Nat × String) Nat := Std.HashMap.ofList [",
-    ",\n".intercalate gotosCode,
-    "]",
-    "",
-    "/-- Tokens esperados em cada estado para mensagens de erro. -/",
-    "def expectedByState : Array (Array TokenKind) := #[",
-    ",\n".intercalate expectedCode,
-    "]",
-    "",
-    "-- ══════════════════════════════════════════════",
-    "-- MOTOR SHIFT-REDUCE SOBRE A TABELA GERADA",
-    "-- ══════════════════════════════════════════════",
-    "",
-    "structure ParseError where",
-    "  found    : Token",
-    "  expected : List TokenKind",
-    "  deriving Repr",
-    "",
-    "def TokenKind.describe : TokenKind → String",
-    "  | .kwInt => \"'int'\" | .kwFloat => \"'float'\" | .kwBool => \"'bool'\" | .kwStr => \"'str'\"",
-    "  | .kwVoid => \"'void'\" | .kwIf => \"'if'\" | .kwElse => \"'else'\" | .kwWhile => \"'while'\"",
-    "  | .kwReturn => \"'return'\" | .kwTrue => \"'true'\" | .kwFalse => \"'false'\"",
-    "  | .kwAnd => \"'and'\" | .kwOr => \"'or'\"",
-    "  | .id => \"identificador\" | .numInt => \"número inteiro\" | .numFloat => \"número real\"",
-    "  | .stringLit => \"texto\"",
-    "  | .plus => \"'+'\" | .minus => \"'-'\" | .times => \"'*'\" | .div => \"'/'\"",
-    "  | .eq => \"'=='\" | .neq => \"'!='\" | .lt => \"'<'\" | .le => \"'<='\" | .gt => \"'>'\" | .ge => \"'>='\"",
-    "  | .not => \"'!'\" | .assign => \"'='\"",
-    "  | .lparen => \"'('\" | .rparen => \"')'\" | .lbrace => \"'{'\" | .rbrace => \"'}'\"",
-    "  | .lbracket => \"'['\" | .rbracket => \"']'\" | .comma => \"','\" | .semi => \"';'\"",
-    "  | .eof => \"fim do arquivo\" | .error => \"caractere não reconhecido\"",
-    "",
-    "private def joinOu : List String → String",
-    "  | [] => \"\"",
-    "  | [x] => x",
-    "  | xs => \", \".intercalate xs.dropLast ++ \" ou \" ++ xs.getLast!",
-    "",
-    "def ParseError.message (e : ParseError) : String :=",
-    "  let pos := s!\"{e.found.line}:{e.found.column}: \"",
-    "  if e.found.kind == .error then",
-    "    pos ++ s!\"caractere não reconhecido '{e.found.lexeme}'\"",
-    "  else",
-    "    let msg := s!\"encontrei {e.found.kind.describe}\"",
-    "    let exp := e.expected.map TokenKind.describe",
-    "    pos ++ (if exp.isEmpty then msg else msg ++ \", esperava \" ++ joinOu exp)",
-    "",
-    "private partial def loop (toks : Array Token) (i : Nat)",
-    "    (states : List Nat) (vals : List ParseTree) : Except ParseError ParseTree :=",
-    "  let cur := toks[i]?.getD (toks.back?.getD { kind := .eof, lexeme := \"\", line := 1, column := 1 })",
-    "  let s := states.headD 0",
-    "  match actionMap.get? (s, cur.kind.ctorIdx) with",
-    "  | none =>",
-    "    let exp := (expectedByState[s]?.getD #[]).toList",
-    "    .error { found := cur, expected := exp }",
-    "  | some (.shift t) => loop toks (i + 1) (t :: states) (.leaf cur :: vals)",
-    "  | some (.reduce p) =>",
-    "    match prods[p]? with",
-    "    | none => .error { found := cur, expected := [] }",
-    "    | some (lhs, alt, n) =>",
-    "      let states := states.drop n",
-    "      let node := ParseTree.node lhs alt (vals.take n).reverse",
-    "      match gotoMap.get? (states.headD 0, lhs) with",
-    "      | some t => loop toks i (t :: states) (node :: vals.drop n)",
-    "      | none => .error { found := cur, expected := [] }",
-    "  | some .accept =>",
-    "    match vals with",
-    "    | [tree] => .ok tree",
-    "    | _ => .error { found := cur, expected := [] }",
-    "",
+    "/-- Analisa um array de tokens usando a tabela gerada estaticamente. -/",
     "def parseTokens (toks : Array Token) : Except ParseError ParseTree :=",
-    "  loop toks 0 [0] []",
+    "  parse generatedTable toks",
     "",
-    "end GeneratedParser"
-  ]
+    "/-- Analisa código-fonte Mini-C e devolve a Árvore de Derivação (`ParseTree`). -/",
+    "def parseSource (src : String) : Except ParseError ParseTree :=",
+    "  parseTokens (scan lexDFA src)",
+    "",
+    "/-- Analisa código-fonte Mini-C e devolve a AST (`Program Unit`). -/",
+    "def parseProgram (src : String) : Except String (Program Unit) :=",
+    "  match parseSource src with",
+    "  | .error e => throw e.message",
+    "  | .ok tree => toProgram tree",
+    "",
+    "end GeneratedParser",
+    ""
+  ])

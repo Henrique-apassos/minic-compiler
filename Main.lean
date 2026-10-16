@@ -1,4 +1,4 @@
-import Parser
+import GeneratedParser
 
 def sample : String :=
 "int fatorial(int n) {
@@ -16,7 +16,7 @@ def main (args : List String) : IO UInt32 := do
   let src ← match args with
     | path :: _ => IO.FS.readFile path
     | [] => pure sample
-  match parseProgram src with
+  match GeneratedParser.parseProgram src with
   | .ok prog =>
     IO.println prog.show
     return 0

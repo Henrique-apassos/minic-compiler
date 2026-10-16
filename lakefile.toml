@@ -20,6 +20,9 @@ roots = [
 [[lean_lib]]
 name = "Parser"
 
+[[lean_lib]]
+name = "GeneratedParser"
+
 [[lean_exe]]
 name = "minic-compiler"
 root = "Main"
