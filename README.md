@@ -2,22 +2,22 @@
 
 Compilador para **Mini-C**, um subconjunto da linguagem C, escrito em **Lean 4**.
 
-O projeto tem a **análise léxica (scanner)**, o **gerador de parser LR(1)** com seu motor, e a **AST** com a conversão da árvore de derivação. O executável lê um programa e imprime a AST. O scanner foi construído do zero sobre uma pequena biblioteca de autômatos: as regras léxicas são expressões regulares, convertidas em NFA pelo algoritmo de Thompson e depois em DFA pela construção de subconjuntos. Por fim, o DFA é executado com *maximal munch* sobre o código-fonte.
+O projeto tem a **análise léxica (scanner)**, o **gerador de parser LR(1)** com emissão de código-fonte e seu motor, e a **AST** com a conversão gerada automaticamente a partir da gramática. O executável lê um programa e imprime a AST. O scanner foi construído do zero sobre uma pequena biblioteca de autômatos: as regras léxicas são expressões regulares, convertidas em NFA pelo algoritmo de Thompson e depois em DFA pela construção de subconjuntos. Por fim, o DFA é executado com *maximal munch* sobre o código-fonte.
 
 ```
 Regras (Regex × TokenKind) ──Thompson──▶ NFA combinado ──Subset construction──▶ DFA ──maximal munch──▶ Tokens
 ```
 
-O parser segue o mesmo desenho: a gramática é escrita como dado, o gerador calcula nulável e FIRST por ponto fixo, monta o autômato LR(1) canônico e as tabelas ACTION/GOTO, e um motor shift-reduce genérico com pilha explícita lê os tokens e devolve a árvore de derivação.
+O parser segue o mesmo desenho: a gramática é escrita como dado junto com as ações semânticas da AST, o gerador calcula nulável e FIRST por ponto fixo, monta o autômato LR(1) canônico e emite dois arquivos de código-fonte: `GeneratedParser.lean` (com as tabelas ACTION/GOTO estáticas) e `Parser/ToAst.lean` (com a conversão da árvore de derivação para a AST).
 
 ```
-Gramática (produções) ──ponto fixo──▶ nulável/FIRST ──▶ autômato LR(1) ──▶ ACTION/GOTO ──shift-reduce──▶ Árvore de derivação
+Gramática + Ações (Grammar.lean) ──ponto fixo──▶ nulável/FIRST ──▶ autômato LR(1) ──gen-parser──▶ GeneratedParser.lean + ToAst.lean
 ```
 
-Por fim, a árvore de derivação é convertida na AST, que guarda só o significado do programa:
+Na execução do compilador, o motor shift-reduce lê os tokens usando a tabela gerada, devolve a árvore de derivação e a converte na AST, que guarda só o significado do programa:
 
 ```
-texto ──scan──▶ tokens ──parse──▶ árvore de derivação ──toProgram──▶ AST
+texto ──scan──▶ tokens ──parse (GeneratedParser)──▶ árvore de derivação ──toProgram (ToAst)──▶ AST
 ```
 
 ## Requisitos
@@ -25,6 +25,14 @@ texto ──scan──▶ tokens ──parse──▶ árvore de derivação ─
 - [elan](https://github.com/leanprover/elan), que instala automaticamente a versão do Lean fixada em `lean-toolchain` (`leanprover/lean4:v4.34.0`)
 
 ## Como compilar e executar
+
+Para gerar o código-fonte do parser (`GeneratedParser.lean` e `Parser/ToAst.lean`) a partir da gramática:
+
+```bash
+lake exe gen-parser
+```
+
+Para compilar o projeto e executar o compilador:
 
 ```bash
 lake build
@@ -47,20 +55,23 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime
 ```
 .
 ├── Main.lean                  # Ponto de entrada: texto → AST, imprime a AST ou o erro
+├── GenMain.lean               # Executável gerador de parser (`lake exe gen-parser`)
+├── GeneratedParser.lean       # [GERADO] Gramática e tabelas ACTION/GOTO LR(1) estáticas
 ├── Scanner.lean               # Raiz da biblioteca Scanner
 ├── Scanner/
-│   ├── Basic.lean             # Tipos de token, classes de caracteres e regras léxicas
+│   ├── Basic.lean             # Tipos de token, descrições, classes de caracteres e regras léxicas
 │   └── Lexer.lean             # NFA combinado, DFA do scanner e o laço de varredura
 ├── Tests/                     # Testes (`lake test`): Harness, Syntax, Programs, Main e fixtures/
 ├── Parser.lean                # Raiz da biblioteca Parser
 ├── Parser/
 │   ├── Tree.lean              # ParseTree: o contrato entre o motor e a conversão para AST
-│   ├── Grammar.lean           # Sym, Production, Grammar e a gramática do miniC
+│   ├── Grammar.lean           # Sym, NtKind, Production, Grammar e a gramática + ações do miniC
 │   ├── First.lean             # Nulável e FIRST (e FOLLOW) por ponto fixo
 │   ├── Table.lean             # Autômato LR(1) e tabelas ACTION/GOTO, com detecção de conflitos
+│   ├── Codegen.lean           # Emissor de código-fonte para GeneratedParser.lean e Parser/ToAst.lean
 │   ├── Engine.lean            # Motor shift-reduce com pilha explícita
 │   ├── Ast.lean               # Tipos da AST (MType, Expr, Stmt, FunDecl) e impressão
-│   └── ToAst.lean             # Árvore de derivação → AST, e parseProgram (texto → AST)
+│   └── ToAst.lean             # [GERADO] Árvore de derivação → AST, e parseProgram (texto → AST)
 ├── Tests.lean                 # Testes do parser e da AST (lake test)
 ├── docs/DECISOES.md           # Decisões do projeto e de onde vieram
 ├── Automata/
@@ -95,7 +106,7 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime
   - pontuação: `( ) { } [ ] , ;`
   - `eof` e `error`
 
-  Cada `Token` guarda tipo, lexema, linha e coluna.
+  Cada `Token` guarda tipo, lexema, linha e coluna, e `TokenKind.describe` define como cada token aparece nas mensagens de erro.
 - **Regras léxicas.** São uma lista ordenada de `(Regex, TokenKind)` montada com auxiliares: `regexFromString`, `regexPlus` e classes de dígitos e letras. A **ordem é a prioridade**: palavras-chave vêm antes de `id`, por isso `int` é `kwInt` e não identificador.
 - **Lexer** (`Lexer.lean`):
   - Todas as regras viram um único **NFA combinado**, com um novo estado inicial ligado por `ε` ao início de cada regra.
@@ -104,22 +115,32 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime
   - `longestMatch` implementa o **maximal munch**: avança o DFA o máximo possível e volta ao último estado de aceitação. Por isso `intx` vira `id` e `<=` vira `le`, não `lt` + `assign`.
   - `scan` ignora espaços em branco e comentários de linha (`//`) e conta linha e coluna. Um caractere não reconhecido gera um token `error` e a varredura continua; o último token é sempre `eof`.
 
-### 3. Gerador de parser LR(1) (`Parser/`)
+### 3. Gerador de parser LR(1) e emissão de código (`Parser/`, `GenMain.lean`)
 
-- **Gramática como dado** (`Grammar.lean`). A gramática do miniC, extraída do parser Rust de referência com laços como caudas recursivas à direita com ε (`AddTail`, `MulTail`...) e prefixos comuns fatorados (`ID IdStmt`, `ID AtomRest`). Essa forma vem da versão LL(1) do parser; como toda gramática LL(1) também é LR(1), ela foi mantida, e a árvore de derivação não mudou. São **42 não-terminais e 85 produções**. A ordem das alternativas faz parte do contrato com a conversão para AST.
+- **Gramática e ações como fonte única** (`Grammar.lean`). A gramática do miniC, extraída do parser Rust de referência com laços como caudas recursivas à direita com ε (`AddTail`, `MulTail`...) e prefixos comuns fatorados (`ID IdStmt`, `ID AtomRest`), é declarada via `mkAstGrammar`. Cada produção carrega seu grupo semântico (`NtKind`) e a expressão Lean que monta o nó da AST a partir dos filhos (`s0`, `s1`, ...), eliminando a necessidade de sincronizar índices de alternativas manualmente em outro arquivo. São **42 não-terminais e 85 produções**.
 - **Nulável e FIRST** (`First.lean`). Calculados por ponto fixo, com um combustível limitado que basta (sem `partial`).
 - **Autômato LR(1) canônico** (`Table.lean`). Itens `A → α • β, L`; o fecho acrescenta `B → • γ` com lookahead FIRST(β), mais `L` se β é nulável. Os estados são identificados pelo kernel, e a gramática é aumentada com `S' → Program`. Daí saem ACTION (shift, reduce, accept) e GOTO. Se uma célula de ACTION tiver duas ações (shift/reduce ou reduce/reduce), a gramática é recusada com a lista de conflitos. A do miniC tem **0 conflitos**, **448 estados**, 3526 ações e 811 gotos.
+- **Emissão de código-fonte** (`Codegen.lean`, `GenMain.lean`). O executável `lake exe gen-parser` serializa a `LR1Table` em blocos estáticos no arquivo `GeneratedParser.lean` e gera automaticamente o módulo `Parser/ToAst.lean` a partir das ações semânticas da gramática.
 - **Motor** (`Engine.lean`). Shift-reduce, com uma pilha de estados e uma pilha de valores (subárvores). Shift empilha a folha do token; reduce desempilha |α| valores, monta o nó e segue GOTO. Não há retrocesso: cada passo olha só o estado do topo e o token atual. O LR(1) canônico nunca reduz com um token inválido, então os esperados do erro são exatamente as ações do estado onde ele aparece. Para no primeiro erro, com uma mensagem em português: `1:19: encontrei ';', esperava '='`.
-
 - **Árvore de derivação** (`Tree.lean`). `leaf tok` guarda o token inteiro; `node nt alt kids` guarda o não-terminal, a alternativa usada (0 = primeira) e os filhos (ε = sem filhos).
-- **Pontos de entrada**: `parseMiniC (toks : Array Token)` e `parseSource (src : String)`.
+- **Pontos de entrada**: `GeneratedParser.parseTokens`, `GeneratedParser.parseSource` e `GeneratedParser.parseProgram` (além de `parseMiniC` e `parseSource` em `Engine.lean`).
 
-### 4. AST e conversão (`Parser/Ast.lean`, `Parser/ToAst.lean`)
+### 4. AST e conversão gerada (`Parser/Ast.lean`, `Parser/ToAst.lean`)
 
 - **Tipos da AST**: `MType` (com `array` para `T[]`), `Lit`, `BinOp`, `Expr Ty`, `Stmt Ty`, `FunDecl Ty` e `Program Ty`. O modelo é o `ast.rs` do exemplo em Rust, sem ponteiros. `Ty` é o tipo anotado em cada expressão: o parser usa `Unit`, e o verificador de tipos poderá usar `MType` sem reescrever a AST.
-- **Conversão**: uma função por grupo de não-terminais (`toProgram`, `toFun`, `toType`, `toStmt`, `toExpr`), escolhendo pelo nome e pela alternativa. Uma árvore fora do formato vira `Except.error` ("árvore malformada em Atom.5") em vez de travar. Recursão estrutural, sem `partial`.
+- **Conversão gerada**: `Parser/ToAst.lean` é gerado por `lake exe gen-parser` com uma função por grupo de não-terminais (`toProgram`, `toFun`, `toType`, `toStmt`, `toExpr`), escolhendo pelo nome e pela alternativa. Uma árvore fora do formato vira `Except.error` ("árvore mal formada em Atom.5") em vez de travar. Recursão estrutural, sem `partial`.
 - **Associatividade**: as caudas (`AddTail`, `MulTail`...) pendem para a direita na árvore; um acumulador as dobra à esquerda, e `a - b - c` vira `(a - b) - c`. Uma função só (`foldTail`) serve para os cinco níveis binários, e outra (`foldIndex`) para `a[i][j]`.
-- **De ponta a ponta**: `parseProgram (src : String) : Except String (Program Unit)`.
+- **De ponta a ponta**: `GeneratedParser.parseProgram (src : String) : Except String (Program Unit)`.
+
+### Como estender a linguagem
+
+Como `GeneratedParser.lean` e `Parser/ToAst.lean` são gerados automaticamente, para adicionar uma nova construção à linguagem basta alterar até 3 arquivos:
+
+1. **`Scanner/Basic.lean`**: adicionar novos tokens em `TokenKind`, sua descrição em `TokenKind.describe` e sua regra em `lexicalRules`.
+2. **`Parser/Ast.lean`**: adicionar o novo construtor em `Expr` ou `Stmt` e sua formatação em `.show`.
+3. **`Parser/Grammar.lean`**: adicionar a produção e a ação semântica correspondente em `minicGrammar`.
+
+Depois, basta rodar `lake exe gen-parser && lake build`.
 
 Exemplo: `lake exe minic-compiler` sobre o programa de `Main.lean` imprime
 
