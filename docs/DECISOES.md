@@ -101,6 +101,20 @@ Atualizado em 6 de outubro de 2026.
 | 58  | A construção do DFA do scanner (`buildLexDFA`) leva **cerca de 4 minutos** e é refeita a cada execução do compilador. A tabela LL(1) e a conversão levam milissegundos.                                                                                                                                                                                                                                                                                            | Medição                              | Resolvida: transições e estados indexados em `HashMap`, ~2 s (PR #3, na `main`) |
 | 42  | A lista de esperados de um erro é exatamente a linha da tabela. Num erro dentro de uma cauda nulável (ex.: `return 1 }`), ela fica longa (FIRST ∪ FOLLOW). Mantido para o motor seguir só a tabela.                                                                                                                                                                                                                                                                | Implementação                        | Pode melhorar                                                                   |
 
+## Decisões abertas e medições (30 de outubro de 2026)
+
+Vêm das apresentações "Mapa livro–código" e "Próximos passos" (links nos PRs #5 a #7). Os padrões são sugestões, não decisões do grupo.
+
+| # | Decisão | Origem | Situação |
+|---|---|---|---|
+| 60 | `int` é subtipo de `float`? Sem conversão, ou coerção explícita na AST (nó `coerce`). Sugerido: coerção em atribuição, chamada e aritmética mista (TAPL §15.6). Decidir antes do verificador de tipos. | Proposta | **Aberta** |
+| 61 | `and`/`or`: estritos ou curto-circuito? Sugerido: curto-circuito, como em C (forma derivada de `if`, TAPL §11.3). Hoje a AST os guarda como `BinOp` comum. | Proposta | **Aberta** |
+| 62 | Declaração repetida: proibir no mesmo bloco e permitir sombreamento em bloco interno? Sugerido: sim (afeta a regra de `let`, TAPL §11.5). | Proposta | **Aberta** |
+| 63 | Escapes de string: `\"`, `\\`, `\n`, `\t` (sugerido; implementado no PR #7). Outro escape é erro léxico. | Proposta | **A confirmar** |
+| 64 | Palavras-chave por consulta a tabela em vez de regras do DFA (EaC §2.5.4): 178 estados (25 minimizados) contra 215 (73) hoje. Sugerido: sim, junto da minimização (PR #6). | Proposta | **Aberta** |
+| 65 | Dono do interpretador e da geração de código (liga com a #10). Sem dono, o passo P8 não anda. | Proposta | **Aberta** |
+| 66 | Medições em Python, reproduzindo os algoritmos do projeto: LR(1) canônico com 448 estados, 3526 ações, 811 gotos e 0 conflitos (idêntico ao gerador); a mesma gramática com recursão à esquerda daria 370 estados; 139 núcleos LR(0) (piso de um LALR); DFA do scanner com 215 estados, 73 minimizados. Base para rever #21 e #32. | Medição | Registrada |
+
 ## Em aberto
 
 - Confirmar a divisão scanner × parser no grupo (7).
@@ -108,3 +122,4 @@ Atualizado em 6 de outubro de 2026.
 - Regra de `stringLit` no scanner (20).
 - Avisar o Henrique da troca do `Main.lean` (54).
 - Definir quem faz tipos, interpretador e codegen (10).
+- Decidir 60 a 65 antes do verificador de tipos e do interpretador.
