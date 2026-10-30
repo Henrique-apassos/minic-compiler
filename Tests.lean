@@ -109,8 +109,10 @@ def checks : List (String × Bool) := [
     | .ok _ => false
     | .error m => m == "1:25: encontrei ';', esperava identificador, '(', '[', '-', número inteiro, número real, texto, 'true' ou 'false'"),
   -- Scanner: minimização (EaC §2.4.4)
-  ("scanner: DFA sem minimizar tem 215 estados", rawLexDFA.numStates == 215),
-  ("scanner: DFA minimizado tem 73 estados", lexDFA.numStates == 73),
+  -- Hoje: 215 estados brutos, 73 minimizados. Relação em vez de contagem exata, para
+  -- não quebrar cada vez que uma regra léxica muda.
+  ("scanner: minimizar reduz o DFA a menos de 40% dos estados",
+    lexDFA.numStates * 5 < rawLexDFA.numStates * 2),
   ("scanner: minimizado e não minimizado geram os mesmos tokens",
     tokData (scan lexDFA scannerSample) == tokData (scan rawLexDFA scannerSample)),
   ("scanner: intx é id e <= é le no DFA minimizado",
