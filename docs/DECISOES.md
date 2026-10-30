@@ -103,7 +103,7 @@ Atualizado em 6 de outubro de 2026.
 
 ## Decisões abertas e medições (30 de outubro de 2026)
 
-Vêm das apresentações "Mapa livro–código" e "Próximos passos" (links nos PRs #5 a #7). Os padrões são sugestões, não decisões do grupo.
+Vêm de uma análise do projeto contra o Engineering a Compiler (§2.4, 2.5, 3.4, 3.5) e o TAPL (cap. 11, 14–19, 22–24); os PRs #5 a #7 implementam o que não depende de decisão. Os padrões são sugestões, não decisões do grupo.
 
 | # | Decisão | Origem | Situação |
 |---|---|---|---|
