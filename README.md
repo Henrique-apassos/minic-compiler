@@ -109,11 +109,12 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime
   Cada `Token` guarda tipo, lexema, linha e coluna, e `TokenKind.describe` define como cada token aparece nas mensagens de erro.
 - **Regras léxicas.** São uma lista ordenada de `(Regex, TokenKind)` montada com auxiliares: `regexFromString`, `regexPlus` e classes de dígitos e letras. A **ordem é a prioridade**: palavras-chave vêm antes de `id`, por isso `int` é `kwInt` e não identificador.
 - **Lexer** (`Lexer.lean`):
+  - Literais de string são uma regra do DFA: `"` corpo `"`, onde o corpo aceita qualquer caractere menos `"`, `\` e quebra de linha, mais os escapes. Caracteres que nenhuma regra menciona (como `á`) viram o símbolo `otherSym`, o "qualquer outro" das classes de caracteres, via `Regex.anyOf`.
   - Todas as regras viram um único **NFA combinado**, com um novo estado inicial ligado por `ε` ao início de cada regra.
   - O alfabeto é extraído das próprias regras.
   - A construção de subconjuntos gera o **`LexDFA`**, com tabelas `HashMap`. Cada estado de aceitação recebe o token da primeira regra que ele reconhece.
   - `longestMatch` implementa o **maximal munch**: avança o DFA o máximo possível e volta ao último estado de aceitação. Por isso `intx` vira `id` e `<=` vira `le`, não `lt` + `assign`.
-  - `scan` ignora espaços em branco e comentários de linha (`//`) e conta linha e coluna. Um caractere não reconhecido gera um token `error` e a varredura continua; o último token é sempre `eof`.
+  - `scan` ignora espaços em branco e comentários de linha (`//`) e de bloco (`/* ... */`, com contagem de linhas; sem fechar é erro) e conta linha e coluna. Um caractere não reconhecido gera um token `error` e a varredura continua; o último token é sempre `eof`.
 
 ### 3. Gerador de parser LR(1) e emissão de código (`Parser/`, `GenMain.lean`)
 
@@ -201,8 +202,7 @@ Roda `Tests/Main.lean` (71 testes, 3 pendentes em 8 de outubro de 2026). Os caso
 
 ## Limitações atuais e próximos passos
 
-- `stringLit` existe em `TokenKind`, mas ainda não há regra léxica para literais de string.
-- Comentários de bloco (`/* ... */`) não são tratados.
+- Escapes em string: só `\"`, `\\`, `\n` e `\t`; qualquer outro (`\u`, `\x`) é erro léxico (decisão D4 em aberto).
 - `epsilonClosure`, `subsetLoop` e `scanLoop` são `partial`, ou seja, não têm prova de terminação.
 - Não há prova formal de que o DFA gerado é equivalente ao NFA ou à regex. As estruturas verificadas `NFA`/`DFA` e o pipeline `Raw*` ainda não estão conectados.
 - O motor de parser é `partial`; o ponto fixo de FIRST/FOLLOW e o fecho LR(1) não são.
