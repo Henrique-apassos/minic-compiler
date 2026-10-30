@@ -47,6 +47,16 @@ private def ambiguous : Grammar := mkGrammar "S" [
 private def toks (ks : List TokenKind) : Array Token :=
   (ks ++ [TokenKind.eof]).toArray.mapIdx fun i k => { kind := k, lexeme := "", line := 1, column := i + 1 }
 
+/-- Tokens como dados comparáveis (`Token` não deriva `BEq`). -/
+private def tokData (ts : Array Token) : List (Nat × String × Nat × Nat) :=
+  ts.toList.map fun t => (t.kind.ctorIdx, t.lexeme, t.line, t.column)
+
+private def scannerSample : String :=
+  "int fatorial(int n) {\n  // comentário\n  if (n <= 1) { return 1; }\n  float x = 3.14;\n  int intx = 42;\n  return a == b != c and !d or e @ n * fatorial(n - 1);\n}\n"
+
+/-- DFA do scanner sem minimizar, só para comparar com o minimizado. -/
+private def rawLexDFA : LexDFA := buildLexDFA lexicalRules false
+
 def checks : List (String × Bool) := [
   ("gramática: 42 não-terminais e 85 produções",
     minicGrammar.nonterminals.length == 42 && minicGrammar.prods.size == 85),
@@ -97,7 +107,15 @@ def checks : List (String × Bool) := [
   ("AST: erro de sintaxe sai como mensagem",
     match parseProgram "int main() { return a - ; }" with
     | .ok _ => false
-    | .error m => m == "1:25: encontrei ';', esperava identificador, '(', '[', '-', número inteiro, número real, texto, 'true' ou 'false'")
+    | .error m => m == "1:25: encontrei ';', esperava identificador, '(', '[', '-', número inteiro, número real, texto, 'true' ou 'false'"),
+  -- Scanner: minimização (EaC §2.4.4)
+  ("scanner: DFA sem minimizar tem 215 estados", rawLexDFA.numStates == 215),
+  ("scanner: DFA minimizado tem 73 estados", lexDFA.numStates == 73),
+  ("scanner: minimizado e não minimizado geram os mesmos tokens",
+    tokData (scan lexDFA scannerSample) == tokData (scan rawLexDFA scannerSample)),
+  ("scanner: intx é id e <= é le no DFA minimizado",
+    (scan lexDFA "intx <= 1").toList.map (·.kind.ctorIdx) ==
+      [TokenKind.id, TokenKind.le, TokenKind.numInt, TokenKind.eof].map (·.ctorIdx))
 ]
 
 def main : IO UInt32 := do

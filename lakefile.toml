@@ -10,6 +10,7 @@ name = "Automata"
 roots = [
   "Automata.Common",
   "Automata.DFA",
+  "Automata.Minimize",
   "Automata.NFA",
   "Automata.Simulation",
   "Automata.SimulationTactics",
