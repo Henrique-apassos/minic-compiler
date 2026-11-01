@@ -37,7 +37,7 @@ Atualizado em 6 de outubro de 2026.
 | 17  | Tipos de array `T[]` com **qualquer número de dimensões** (o Rust limita a 2).                                                                      | Proposta                       | Adotada (`Dims`)                   |
 | 18  | Toda declaração tem valor inicial: `int x = 1;`. `int x;` é erro.                                                                                   | Exemplo Rust                   | Adotada                            |
 | 19  | Expressão solta não é comando: `x + 1;` é erro. Só chamada (`f(x);`) e atribuição (`x = 1;`, `a[i] = 1;`) começam com identificador.                | Exemplo Rust                   | Adotada                            |
-| 20  | Literais de string fazem parte da linguagem, mas o scanner **ainda não tem a regra de `stringLit`**. A gramática já aceita o token.                 | Grupo                          | **Pendente** (Henrique e Felipe)   |
+| 20  | Literais de string fazem parte da linguagem. O scanner tem a regra de `stringLit` (`Regex.anyOf` + símbolo `otherSym`) e o `ToAst` decodifica `\"`, `\\`, `\n` e `\t`. Essa lista de escapes é um padrão sugerido (D4). | Grupo | Implementada; escapes **a confirmar** |
 
 ## Gramática
 

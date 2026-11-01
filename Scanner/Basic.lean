@@ -98,7 +98,11 @@ def idRegex : Regex := Regex.concat alphaRegex (Regex.star (Regex.union alphaReg
 -- A ORDEM É CRÍTICA! Num scanner real, símbolos compostos ("==")
 -- devem ser avaliados antes de símbolos simples ("=").
 
-def lexicalRules : List (Regex × TokenKind) := [
+/-- "Qualquer outro caractere": o que nenhuma regra menciona (como o "á" dentro de uma
+    string) vira este símbolo no DFA. Nenhum caractere real é a string vazia. -/
+def otherSym : Symbol := ""
+
+def baseRules : List (Regex × TokenKind) := [
   -- Palavras-chave
   (regexFromString "int", TokenKind.kwInt),
   (regexFromString "float", TokenKind.kwFloat),
@@ -144,6 +148,17 @@ def lexicalRules : List (Regex × TokenKind) := [
   (idRegex, TokenKind.id)
 
 ]
+
+-- Literal de string: aspas, corpo e aspas. O corpo aceita qualquer símbolo menos aspas,
+-- barra e quebra de linha (e `otherSym`), mais os escapes \" \\ \n \t.
+def stringRegex : Regex :=
+  let known := (baseRules.flatMap fun (r, _) => r.symbols).eraseDups
+  let plain := known.filter fun c => c != "\"" && c != "\\" && c != "\n"
+  let escape := Regex.concat (Regex.literal "\\") (Regex.anyOf ["\"", "\\", "n", "t"])
+  let body := Regex.union (Regex.anyOf (plain ++ [otherSym])) escape
+  Regex.concat (Regex.literal "\"") (Regex.concat (Regex.star body) (Regex.literal "\""))
+
+def lexicalRules : List (Regex × TokenKind) := baseRules ++ [(stringRegex, TokenKind.stringLit)]
 
 /-- Como o token aparece para o usuário nas mensagens de erro. -/
 def TokenKind.describe : TokenKind → String
