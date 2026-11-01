@@ -3,8 +3,8 @@ import Parser
 -- ══════════════════════════════════════════════
 -- TESTES DO PARSER  (rodar com `lake test`)
 -- ══════════════════════════════════════════════
--- Executável compilado: no interpretador (`#guard`) cada teste reconstruiria o DFA do scanner.
--- Sai com código 1 se algum teste falhar.
+-- Executado por `Tests/Main.lean`. Compilado: no interpretador (`#guard`) cada teste
+-- reconstruiria o DFA do scanner.
 
 private def accepts (src : String) : Bool :=
   match parseSource src with | .ok _ => true | .error _ => false
@@ -111,11 +111,3 @@ def checks : List (String × Bool) := [
   ("comentário de bloco sem fechar é erro em 1:14", rejectsAt "int main() { /* abc }" 1 14),
   ("/ sozinho continua sendo divisão", exprOf "6 / 3" == "(6 / 3)")
 ]
-
-def main : IO UInt32 := do
-  let mut failed := 0
-  for (name, ok) in checks do
-    IO.println s!"{if ok then "ok    " else "FALHOU"} {name}"
-    if !ok then failed := failed + 1
-  IO.println s!"{checks.length - failed}/{checks.length} testes passaram."
-  return (if failed == 0 then 0 else 1)

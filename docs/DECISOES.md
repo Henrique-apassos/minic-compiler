@@ -61,7 +61,7 @@ Atualizado em 6 de outubro de 2026.
 
 | # | Decisão | Origem | Situação |
 |---|---|---|---|
-| 29 | Nulável e FIRST (e FOLLOW, que o LR(1) não usa mais) por **ponto fixo** (repetir até nada mudar), como o `epsilonClosure` do scanner. | Proposta | Implementada |
+| 29 | Nulável e FIRST por **ponto fixo** (repetir até nada mudar), como o `epsilonClosure` do scanner. O FOLLOW, que só o LL(1) usava, foi **removido** (nada o consumia desde a troca para LR(1)). | Proposta | Implementada |
 | 30 | O ponto fixo usa **combustível com limite provado suficiente** (não-terminais × (terminais + 1) + 1), em vez de `partial`. O fecho LR(1) também (núcleos × (terminais + 1) + \|kernel\| + 1); a busca de estados tem um teto de 100000 e falha com erro se passar. | Implementação | Implementada |
 | 31 | A gramática é **aumentada** com `S' → Program`, cujo item inicial tem lookahead `eof`; o aceite é `S' → Program •` com `eof`. No miniC o próprio `Program` consome o `eof`, e o motor lê `eof` de novo depois do fim. | Implementação | Implementada |
 | 32 | **LR(1) canônico** (não LALR): estados são conjuntos de itens `A → α • β, L`, identificados pelo kernel; lookaheads de mesmo núcleo ficam numa máscara de bits. A tabela recusa a gramática se houver **qualquer conflito** (shift/reduce ou reduce/reduce) e lista todos (estado, token, ações em disputa). | Proposta | Implementada |

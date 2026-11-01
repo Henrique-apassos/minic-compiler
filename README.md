@@ -42,7 +42,7 @@ lake build
 lake exe minic-compiler programa.c
 ```
 
-Para rodar os testes do parser (27 verificações: gerador, motor e AST):
+Para rodar todos os testes (verificações do gerador, do motor e da AST, mais os casos portados do Rust):
 
 ```bash
 lake test
@@ -66,7 +66,7 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime
 ├── Parser/
 │   ├── Tree.lean              # ParseTree: o contrato entre o motor e a conversão para AST
 │   ├── Grammar.lean           # Sym, NtKind, Production, Grammar e a gramática + ações do miniC
-│   ├── First.lean             # Nulável e FIRST (e FOLLOW) por ponto fixo
+│   ├── First.lean             # Nulável e FIRST por ponto fixo
 │   ├── Table.lean             # Autômato LR(1) e tabelas ACTION/GOTO, com detecção de conflitos
 │   ├── Codegen.lean           # Emissor de código-fonte para GeneratedParser.lean e Parser/ToAst.lean
 │   ├── Engine.lean            # Motor shift-reduce com pilha explícita
@@ -198,14 +198,14 @@ Saída (trecho):
 lake test
 ```
 
-Roda `Tests/Main.lean` (71 testes, 3 pendentes em 8 de outubro de 2026). Os casos vêm de `MiniC/tests/parser.rs` e `program.rs`, com os mesmos nomes; os fixtures `.minic` estão em `Tests/fixtures/`. Pendente = lacuna conhecida do compilador (hoje, literais de string): não falha a execução, mas se passar o teste falha pedindo para remover a marca. Detalhes em `docs/DECISOES.md` (#37 e #59).
+Roda `Tests/Main.lean` (exe `parserTests`), que reúne as 27 verificações de `Tests.lean` (gerador, motor e AST) e os grupos portados de `MiniC/tests/parser.rs` e `program.rs`, com os mesmos nomes; os fixtures `.minic` estão em `Tests/fixtures/`. A saída termina com o total (`N testes: X passaram, Y falharam, Z pendentes`) e o código de saída é 1 se algo falhar. Pendente (`Test.pend`) = lacuna conhecida do compilador: não falha a execução, mas se passar o teste falha pedindo para remover a marca. Nenhum teste está pendente hoje. Detalhes em `docs/DECISOES.md` (#37 e #59).
 
 ## Limitações atuais e próximos passos
 
 - Escapes em string: só `\"`, `\\`, `\n` e `\t`; qualquer outro (`\u`, `\x`) é erro léxico (decisão D4 em aberto).
 - `epsilonClosure`, `subsetLoop` e `scanLoop` são `partial`, ou seja, não têm prova de terminação.
 - Não há prova formal de que o DFA gerado é equivalente ao NFA ou à regex. As estruturas verificadas `NFA`/`DFA` e o pipeline `Raw*` ainda não estão conectados.
-- O motor de parser é `partial`; o ponto fixo de FIRST/FOLLOW e o fecho LR(1) não são.
+- O motor de parser é `partial`; o ponto fixo de FIRST e o fecho LR(1) não são.
 - Próximas fases do compilador: análise semântica (tipos), interpretador e geração de código.
 
 As decisões de projeto, com origem e o que ainda precisa ser confirmado, estão em [docs/DECISOES.md](docs/DECISOES.md).
