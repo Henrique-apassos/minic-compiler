@@ -6,3 +6,4 @@ import Parser.Codegen
 import Parser.Engine
 import Parser.Ast
 import Parser.ToAst
+import Parser.TypeCheck

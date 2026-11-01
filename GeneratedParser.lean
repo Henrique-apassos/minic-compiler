@@ -6,6 +6,7 @@
 import Std.Data.HashMap
 import Parser.Engine
 import Parser.ToAst
+import Parser.TypeCheck
 
 set_option maxRecDepth 100000
 
@@ -4686,5 +4687,10 @@ def parseProgram (src : String) : Except String (Program Unit) :=
   match parseSource src with
   | .error e => throw e.message
   | .ok tree => toProgram tree
+
+/-- Analisa sintática e semanticamente o código-fonte Mini-C e devolve a AST tipada (`Program MType`). -/
+def checkProgram (src : String) : Except String (Program MType) := do
+  let prog ← parseProgram src
+  typeCheckProgram prog
 
 end GeneratedParser
