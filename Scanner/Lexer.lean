@@ -1,6 +1,7 @@
 import Scanner.Basic
 import Automata.Minimize
 import Std.Data.HashMap
+import Std.Data.HashSet
 
 -- ══════════════════════════════════════════════
 -- 1. NFA COMBINADO (todas as regras num só autómato)
@@ -27,13 +28,7 @@ def buildCombined (rules : List (Regex × TokenKind)) : BuilderM TaggedNFA := do
 -- ══════════════════════════════════════════════
 -- 2. ALFABETO EXTRAÍDO DAS REGRAS
 -- ══════════════════════════════════════════════
-
-def Regex.symbols : Regex → List Symbol
-  | .epsilon     => []
-  | .literal s   => [s]
-  | .concat a b  => a.symbols ++ b.symbols
-  | .union a b   => a.symbols ++ b.symbols
-  | .star r      => r.symbols
+-- `Regex.symbols` está em Automata/Thompson.lean.
 
 -- ══════════════════════════════════════════════
 -- 3. DFA DO SCANNER (com tabela de transições e etiquetas)
@@ -44,6 +39,8 @@ structure LexDFA where
   trans     : Std.HashMap (State × Symbol) State
   accepting : Std.HashMap State TokenKind
   numStates : Nat
+  /-- Caracteres que alguma regra menciona; qualquer outro vira `otherSym`. -/
+  alphabet  : Std.HashSet Symbol
 
 /-- Reaproveita `epsilonClosure` e `subsetLoop` de `Automata.Subset`.
     Cada estado do DFA aceita o token da PRIMEIRA regra cujo estado de
@@ -80,12 +77,18 @@ def buildLexDFA (rules : List (Regex × TokenKind)) (minimize : Bool := true) : 
 -- Corre o DFA o mais longe possível e devolve o último ponto onde
 -- estava num estado de aceitação: (fim do lexema, token).
 
+-- Símbolo do DFA para um caractere: ele mesmo se alguma regra o menciona, senão
+-- `otherSym` (o "qualquer outro" das classes de caracteres, como em `"olá"`).
+-- A quebra de linha nunca é `otherSym`: assim ela encerra o literal de string.
+def LexDFA.symbolOf (dfa : LexDFA) (c : Char) : Symbol :=
+  if c == '\n' || dfa.alphabet.contains c.toString then c.toString else otherSym
+
 def longestMatch (dfa : LexDFA) (cs : Array Char) (i : Nat) : Option (Nat × TokenKind) :=
   go i dfa.start none
 where
   go (j : Nat) (st : State) (best : Option (Nat × TokenKind)) : Option (Nat × TokenKind) :=
     if h : j < cs.size then
-      match dfa.trans[(st, cs[j].toString)]? with
+      match dfa.trans[(st, dfa.symbolOf cs[j])]? with
       | none    => best
       | some st' =>
           let best' := match dfa.accepting[st']? with
@@ -99,6 +102,16 @@ def skipLineComment (cs : Array Char) (i : Nat) : Nat :=
   if h : i < cs.size then
     if cs[i] == '\n' then i else skipLineComment cs (i + 1)
   else i
+termination_by cs.size - i
+
+/-- Depois de `/*`: posição, linha e coluna logo após o `*/`, ou `none` se o comentário
+    não fecha. Conta as quebras de linha que atravessa. -/
+def skipBlockComment (cs : Array Char) (i line col : Nat) : Option (Nat × Nat × Nat) :=
+  if h : i < cs.size then
+    if cs[i] == '*' && cs[i + 1]? == some '/' then some (i + 2, line, col + 2)
+    else if cs[i] == '\n' then skipBlockComment cs (i + 1) (line + 1) 1
+    else skipBlockComment cs (i + 1) line (col + 1)
+  else none
 termination_by cs.size - i
 
 def sliceString (cs : Array Char) (i j : Nat) : String :=
@@ -119,6 +132,13 @@ partial def scanLoop (dfa : LexDFA) (cs : Array Char)
     else if c == '/' && cs[i + 1]? == some '/' then
       let j := skipLineComment cs i
       scanLoop dfa cs j line (col + (j - i)) acc
+    else if c == '/' && cs[i + 1]? == some '*' then
+      match skipBlockComment cs (i + 2) line (col + 2) with
+      | some (j, line', col') => scanLoop dfa cs j line' col' acc
+      | none =>
+          -- comentário sem fechar: token de erro no `/*` e o resto do arquivo é descartado
+          scanLoop dfa cs cs.size line col
+            (acc.push { kind := .error, lexeme := "/*", line := line, column := col })
     else
       match longestMatch dfa cs i with
       | some (j, k) =>

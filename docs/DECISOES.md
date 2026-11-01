@@ -37,7 +37,7 @@ Atualizado em 6 de outubro de 2026.
 | 17  | Tipos de array `T[]` com **qualquer número de dimensões** (o Rust limita a 2).                                                                      | Proposta                       | Adotada (`Dims`)                   |
 | 18  | Toda declaração tem valor inicial: `int x = 1;`. `int x;` é erro.                                                                                   | Exemplo Rust                   | Adotada                            |
 | 19  | Expressão solta não é comando: `x + 1;` é erro. Só chamada (`f(x);`) e atribuição (`x = 1;`, `a[i] = 1;`) começam com identificador.                | Exemplo Rust                   | Adotada                            |
-| 20  | Literais de string fazem parte da linguagem, mas o scanner **ainda não tem a regra de `stringLit`**. A gramática já aceita o token.                 | Grupo                          | **Pendente** (Henrique e Felipe)   |
+| 20  | Literais de string fazem parte da linguagem. O scanner tem a regra de `stringLit` (`Regex.anyOf` + símbolo `otherSym`) e o `ToAst` decodifica `\"`, `\\`, `\n` e `\t`. Essa lista de escapes é um padrão sugerido (D4). | Grupo | Implementada; escapes **a confirmar** |
 
 ## Gramática
 
@@ -61,7 +61,7 @@ Atualizado em 6 de outubro de 2026.
 
 | # | Decisão | Origem | Situação |
 |---|---|---|---|
-| 29 | Nulável e FIRST (e FOLLOW, que o LR(1) não usa mais) por **ponto fixo** (repetir até nada mudar), como o `epsilonClosure` do scanner. | Proposta | Implementada |
+| 29 | Nulável e FIRST por **ponto fixo** (repetir até nada mudar), como o `epsilonClosure` do scanner. O FOLLOW, que só o LL(1) usava, foi **removido** (nada o consumia desde a troca para LR(1)). | Proposta | Implementada |
 | 30 | O ponto fixo usa **combustível com limite provado suficiente** (não-terminais × (terminais + 1) + 1), em vez de `partial`. O fecho LR(1) também (núcleos × (terminais + 1) + \|kernel\| + 1); a busca de estados tem um teto de 100000 e falha com erro se passar. | Implementação | Implementada |
 | 31 | A gramática é **aumentada** com `S' → Program`, cujo item inicial tem lookahead `eof`; o aceite é `S' → Program •` com `eof`. No miniC o próprio `Program` consome o `eof`, e o motor lê `eof` de novo depois do fim. | Implementação | Implementada |
 | 32 | **LR(1) canônico** (não LALR): estados são conjuntos de itens `A → α • β, L`, identificados pelo kernel; lookaheads de mesmo núcleo ficam numa máscara de bits. A tabela recusa a gramática se houver **qualquer conflito** (shift/reduce ou reduce/reduce) e lista todos (estado, token, ações em disputa). | Proposta | Implementada |
@@ -101,6 +101,20 @@ Atualizado em 6 de outubro de 2026.
 | 58  | A construção do DFA do scanner (`buildLexDFA`) leva **cerca de 4 minutos** e é refeita a cada execução do compilador. A tabela LL(1) e a conversão levam milissegundos.                                                                                                                                                                                                                                                                                            | Medição                              | Resolvida: transições e estados indexados em `HashMap`, ~2 s (PR #3, na `main`) |
 | 42  | A lista de esperados de um erro é exatamente a linha da tabela. Num erro dentro de uma cauda nulável (ex.: `return 1 }`), ela fica longa (FIRST ∪ FOLLOW). Mantido para o motor seguir só a tabela.                                                                                                                                                                                                                                                                | Implementação                        | Pode melhorar                                                                   |
 
+## Decisões abertas e medições (30 de outubro de 2026)
+
+Vêm de uma análise do projeto contra o Engineering a Compiler (§2.4, 2.5, 3.4, 3.5) e o TAPL (cap. 11, 14–19, 22–24); os PRs #5 a #7 implementam o que não depende de decisão. Os padrões são sugestões, não decisões do grupo.
+
+| # | Decisão | Origem | Situação |
+|---|---|---|---|
+| 60 | `int` é subtipo de `float`? Sem conversão, ou coerção explícita na AST (nó `coerce`). Sugerido: coerção em atribuição, chamada e aritmética mista (TAPL §15.6). Decidir antes do verificador de tipos. | Proposta | **Aberta** |
+| 61 | `and`/`or`: estritos ou curto-circuito? Sugerido: curto-circuito, como em C (forma derivada de `if`, TAPL §11.3). Hoje a AST os guarda como `BinOp` comum. | Proposta | **Aberta** |
+| 62 | Declaração repetida: proibir no mesmo bloco e permitir sombreamento em bloco interno? Sugerido: sim (afeta a regra de `let`, TAPL §11.5). | Proposta | **Aberta** |
+| 63 | Escapes de string: `\"`, `\\`, `\n`, `\t` (sugerido; implementado no PR #7). Outro escape é erro léxico. | Proposta | **A confirmar** |
+| 64 | Palavras-chave por consulta a tabela em vez de regras do DFA (EaC §2.5.4): 178 estados (25 minimizados) contra 215 (73) hoje. Sugerido: sim, junto da minimização (PR #6). | Proposta | **Aberta** |
+| 65 | Dono do interpretador e da geração de código (liga com a #10). Sem dono, o passo P8 não anda. | Proposta | **Aberta** |
+| 66 | Medições em Python, reproduzindo os algoritmos do projeto: LR(1) canônico com 448 estados, 3526 ações, 811 gotos e 0 conflitos (idêntico ao gerador); a mesma gramática com recursão à esquerda daria 370 estados; 139 núcleos LR(0) (piso de um LALR); DFA do scanner com 215 estados, 73 minimizados. Base para rever #21 e #32. | Medição | Registrada |
+
 ## Em aberto
 
 - Confirmar a divisão scanner × parser no grupo (7).
@@ -108,3 +122,4 @@ Atualizado em 6 de outubro de 2026.
 - Regra de `stringLit` no scanner (20).
 - Avisar o Henrique da troca do `Main.lean` (54).
 - Definir quem faz tipos, interpretador e codegen (10).
+- Decidir 60 a 65 antes do verificador de tipos e do interpretador.

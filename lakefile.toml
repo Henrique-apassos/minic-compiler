@@ -24,13 +24,18 @@ name = "Parser"
 [[lean_lib]]
 name = "GeneratedParser"
 
+# Módulos de teste, importados por `Tests.Main` (raiz do exe `parserTests`).
+[[lean_lib]]
+name = "TestSuite"
+roots = ["Tests", "Tests.Harness", "Tests.Syntax", "Tests.Programs"]
+
 [[lean_exe]]
 name = "minic-compiler"
 root = "Main"
 
 [[lean_exe]]
 name = "parserTests"
-root = "Tests"
+root = "Tests.Main"
 
 [[lean_exe]]
 name = "gen-parser"

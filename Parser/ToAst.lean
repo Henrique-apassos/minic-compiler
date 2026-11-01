@@ -29,9 +29,16 @@ private def parseFloat (s : String) : Except String Float :=
     | _, _ => throw s!"número real inválido '{s}'"
   | _ => throw s!"número real inválido '{s}'"
 
+private def unescape : List Char → List Char
+  | '\\' :: 'n' :: rest => '\n' :: unescape rest
+  | '\\' :: 't' :: rest => '\t' :: unescape rest
+  | '\\' :: c :: rest => c :: unescape rest
+  | c :: rest => c :: unescape rest
+  | [] => []
+
 private def unquote (s : String) : String :=
   if s.length >= 2 && s.startsWith "\"" && s.endsWith "\"" then
-    String.ofList (s.toList.drop 1).dropLast
+    String.ofList (unescape (s.toList.drop 1).dropLast)
   else s
 
 -- ── Tipos ──────────────────────────────────────

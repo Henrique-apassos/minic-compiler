@@ -11,6 +11,8 @@ inductive Regex where
   | concat  (r1 r2 : Regex) : Regex
   | union   (r1 r2 : Regex) : Regex
   | star    (r : Regex) : Regex
+  /-- Classe de caracteres: um dos símbolos de `cs`. Um fragmento só, em vez de uma cadeia de uniões. -/
+  | anyOf   (cs : List Symbol) : Regex
   deriving Repr
 
 
@@ -50,6 +52,11 @@ def buildThompson (r : Regex) : BuilderM RawNFA := do
       let f ← freshState
       return { start := s, accept := f, transitions := [((s, c), f)] }
 
+  | Regex.anyOf cs =>
+      let s ← freshState
+      let f ← freshState
+      return { start := s, accept := f, transitions := cs.map fun c => ((s, c), f) }
+
   | Regex.concat r1 r2 =>
       let n1 ← buildThompson r1
       let n2 ← buildThompson r2
@@ -77,6 +84,15 @@ def buildThompson (r : Regex) : BuilderM RawNFA := do
                [((s, "ε"), n1.start), ((s, "ε"), f),
                 ((n1.accept, "ε"), n1.start), ((n1.accept, "ε"), f)]
       return { start := s, accept := f, transitions := t }
+
+/-- Símbolos que a regex menciona. -/
+def Regex.symbols : Regex → List Symbol
+  | .epsilon     => []
+  | .literal s   => [s]
+  | .concat a b  => a.symbols ++ b.symbols
+  | .union a b   => a.symbols ++ b.symbols
+  | .star r      => r.symbols
+  | .anyOf cs    => cs
 
 -- ══════════════════════════════════════════════
 -- 4. FUNÇÃO DE ENTRADA
