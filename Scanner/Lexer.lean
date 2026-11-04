@@ -1,4 +1,5 @@
 import Scanner.Basic
+import Automata.Minimize
 import Std.Data.HashMap
 import Std.Data.HashSet
 
@@ -37,13 +38,16 @@ structure LexDFA where
   start     : State
   trans     : Std.HashMap (State × Symbol) State
   accepting : Std.HashMap State TokenKind
+  numStates : Nat
   /-- Caracteres que alguma regra menciona; qualquer outro vira `otherSym`. -/
   alphabet  : Std.HashSet Symbol
 
 /-- Reaproveita `epsilonClosure` e `subsetLoop` de `Automata.Subset`.
     Cada estado do DFA aceita o token da PRIMEIRA regra cujo estado de
-    aceitação do NFA pertence ao conjunto. -/
-def buildLexDFA (rules : List (Regex × TokenKind)) : LexDFA :=
+    aceitação do NFA pertence ao conjunto. Com `minimize`, estados equivalentes são
+    fundidos (Automata/Minimize.lean); o scanner reconhece exatamente a mesma linguagem
+    e o mesmo token por lexema, com bem menos estados. -/
+def buildLexDFA (rules : List (Regex × TokenKind)) (minimize : Bool := true) : LexDFA :=
   let (tnfa, _) := (buildCombined rules).run 0
   let alphabet := (rules.flatMap (fun (r, _) => r.symbols)).eraseDups
   let idx := indexTransitions tnfa.transitions
@@ -55,7 +59,21 @@ def buildLexDFA (rules : List (Regex × TokenKind)) : LexDFA :=
     match tnfa.accepts.find? (fun (a, _) => a ∈ states) with
     | some (_, k) => m.insert id k
     | none        => m) {}
-  { start := 0, trans := trans, accepting := accepting, alphabet := Std.HashSet.ofList alphabet }
+  let n := env.nextDfaId
+  let alpha := Std.HashSet.ofList alphabet
+  if !minimize then
+    { start := 0, trans := trans, accepting := accepting, alphabet := alpha, numStates := n }
+  else
+  let label (s : State) : Nat :=
+    match accepting[s]? with
+    | some k => k.ctorIdx + 1
+    | none   => 0
+  let cls := minimizeClasses n alphabet trans label
+  { start := cls[0]!
+    trans := trans.fold (fun m (s, c) d => m.insert (cls[s]!, c) cls[d]!) {}
+    accepting := accepting.fold (fun m s k => m.insert cls[s]! k) {}
+    alphabet := alpha
+    numStates := cls.foldl max 0 + 1 }
 
 -- ══════════════════════════════════════════════
 -- 4. MAXIMAL MUNCH

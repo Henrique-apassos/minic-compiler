@@ -10,6 +10,7 @@ name = "Automata"
 roots = [
   "Automata.Common",
   "Automata.DFA",
+  "Automata.Minimize",
   "Automata.NFA",
   "Automata.Simulation",
   "Automata.SimulationTactics",
@@ -27,6 +28,7 @@ name = "GeneratedParser"
 [[lean_lib]]
 name = "TestSuite"
 roots = ["Tests", "Tests.Harness", "Tests.Syntax", "Tests.Programs", "Tests.TypeCheck"]
+
 
 [[lean_exe]]
 name = "minic-compiler"

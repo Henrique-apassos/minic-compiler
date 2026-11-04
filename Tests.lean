@@ -47,6 +47,16 @@ private def ambiguous : Grammar := mkGrammar "S" [
 private def toks (ks : List TokenKind) : Array Token :=
   (ks ++ [TokenKind.eof]).toArray.mapIdx fun i k => { kind := k, lexeme := "", line := 1, column := i + 1 }
 
+/-- Tokens como dados comparáveis (`Token` não deriva `BEq`). -/
+private def tokData (ts : Array Token) : List (Nat × String × Nat × Nat) :=
+  ts.toList.map fun t => (t.kind.ctorIdx, t.lexeme, t.line, t.column)
+
+private def scannerSample : String :=
+  "int fatorial(int n) {\n  // comentário\n  if (n <= 1) { return 1; }\n  float x = 3.14;\n  int intx = 42;\n  return a == b != c and !d or e @ n * fatorial(n - 1);\n}\n"
+
+/-- DFA do scanner sem minimizar, só para comparar com o minimizado. -/
+private def rawLexDFA : LexDFA := buildLexDFA lexicalRules false
+
 def checks : List (String × Bool) := [
   ("gramática: 42 não-terminais e 85 produções",
     minicGrammar.nonterminals.length == 42 && minicGrammar.prods.size == 85),
@@ -109,5 +119,15 @@ def checks : List (String × Bool) := [
   ("comentário de bloco: linha e coluna depois dele",
     rejectsAt "int main() {\n/* a\n b */ return a - ; }" 3 18),
   ("comentário de bloco sem fechar é erro em 1:14", rejectsAt "int main() { /* abc }" 1 14),
-  ("/ sozinho continua sendo divisão", exprOf "6 / 3" == "(6 / 3)")
+  ("/ sozinho continua sendo divisão", exprOf "6 / 3" == "(6 / 3)"),
+  -- Scanner: minimização (EaC §2.4.4)
+  -- Hoje: 220 estados brutos, 76 minimizados. Relação em vez de contagem exata, para
+  -- não quebrar cada vez que uma regra léxica muda.
+  ("scanner: minimizar reduz o DFA a menos de 40% dos estados",
+    lexDFA.numStates * 5 < rawLexDFA.numStates * 2),
+  ("scanner: minimizado e não minimizado geram os mesmos tokens",
+    tokData (scan lexDFA scannerSample) == tokData (scan rawLexDFA scannerSample)),
+  ("scanner: intx é id e <= é le no DFA minimizado",
+    (scan lexDFA "intx <= 1").toList.map (·.kind.ctorIdx) ==
+      [TokenKind.id, TokenKind.le, TokenKind.numInt, TokenKind.eof].map (·.ctorIdx))
 ]
