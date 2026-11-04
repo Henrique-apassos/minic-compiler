@@ -108,6 +108,18 @@ def checks : List (String × Bool) := [
     match parseProgram "int main() { return a - ; }" with
     | .ok _ => false
     | .error m => m == "1:25: encontrei ';', esperava identificador, '(', '[', '-', número inteiro, número real, texto, 'true' ou 'false'"),
+  -- Scanner: literais de string e comentários de bloco
+  ("string: literal simples", exprOf "\"ola\"" == "\"ola\""),
+  ("string: caractere fora do alfabeto (á)", exprOf "\"olá\"" == "\"olá\""),
+  ("string: escapes de aspas, barra, \\n e \\t",
+    exprOf "\"a\\\"b\\\\c\\nd\\te\"" == "\"a\\\"b\\\\c\\nd\\te\""),
+  ("string: sem fechar é erro em 1:22", rejectsAt "int main() { str s = \"abc; }" 1 22),
+  ("string: não atravessa a linha", rejectsAt "int main() { str s = \"ab\ncd\"; }" 1 22),
+  ("comentário de bloco: ignorado", exprOf "1 /* x */ + 2" == "(1 + 2)"),
+  ("comentário de bloco: linha e coluna depois dele",
+    rejectsAt "int main() {\n/* a\n b */ return a - ; }" 3 18),
+  ("comentário de bloco sem fechar é erro em 1:14", rejectsAt "int main() { /* abc }" 1 14),
+  ("/ sozinho continua sendo divisão", exprOf "6 / 3" == "(6 / 3)"),
   -- Scanner: minimização (EaC §2.4.4)
   -- Hoje: 220 estados brutos, 76 minimizados. Relação em vez de contagem exata, para
   -- não quebrar cada vez que uma regra léxica muda.
