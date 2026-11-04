@@ -60,7 +60,10 @@ def buildLexDFA (rules : List (Regex × TokenKind)) (minimize : Bool := true) : 
     | some (_, k) => m.insert id k
     | none        => m) {}
   let n := env.nextDfaId
-  if !minimize then { start := 0, trans := trans, accepting := accepting, numStates := n } else
+  let alpha := Std.HashSet.ofList alphabet
+  if !minimize then
+    { start := 0, trans := trans, accepting := accepting, alphabet := alpha, numStates := n }
+  else
   let label (s : State) : Nat :=
     match accepting[s]? with
     | some k => k.ctorIdx + 1
@@ -69,6 +72,7 @@ def buildLexDFA (rules : List (Regex × TokenKind)) (minimize : Bool := true) : 
   { start := cls[0]!
     trans := trans.fold (fun m (s, c) d => m.insert (cls[s]!, c) cls[d]!) {}
     accepting := accepting.fold (fun m s k => m.insert cls[s]! k) {}
+    alphabet := alpha
     numStates := cls.foldl max 0 + 1 }
 
 -- ══════════════════════════════════════════════
