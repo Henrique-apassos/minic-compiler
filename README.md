@@ -48,6 +48,12 @@ Para rodar todos os testes (verificações do gerador, do motor e da AST, mais o
 lake test
 ```
 
+Para listar cada teste com a referência (seção do livro ou decisão) e o motivo de existir:
+
+```bash
+lake test -- --verbose
+```
+
 Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele imprime a AST, com toda operação binária entre parênteses para a associatividade ficar visível. Se houver erro de sintaxe, imprime `erro: linha:coluna: ...` e sai com código 1.
 
 ## Estrutura do projeto

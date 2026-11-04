@@ -14,8 +14,19 @@ structure Test where
   detail  : String := ""
   /-- Lacuna conhecida do compilador. Falhar é o esperado; passar vira erro (tirar a marca). -/
   pending : Option String := none
+  /-- Onde o livro (ou uma decisão do projeto) pede este comportamento. -/
+  ref     : String := ""
+  /-- Por que o teste importa, em uma frase. -/
+  why     : String := ""
 
 def Test.pend (t : Test) (why : String) : Test := { t with pending := some why }
+
+/-- Documenta um teste: `ref` diz de onde vem a exigência, `why` por que ela importa. -/
+def Test.doc (t : Test) (ref why : String) : Test := { t with ref := ref, why := why }
+
+private def Test.docLines (t : Test) : String :=
+  (if t.ref == "" then "" else s!"\n           ref: {t.ref}") ++
+  (if t.why == "" then "" else s!"\n           por quê: {t.why}")
 
 /-- Um teste do Rust com várias asserções vira um só: passa se todas passarem. -/
 def allOf (name : String) (ts : List Test) : Test :=
@@ -97,8 +108,9 @@ def rejectFun (src : String) : Test :=
 
 -- ── Execução ───────────────────────────────────
 
-/-- Imprime só o que falhou ou está pendente, e o total. Sai com 1 se algo falhou. -/
-def runAll (groups : List (String × List Test)) : IO UInt32 := do
+/-- Imprime só o que falhou ou está pendente, e o total. Com `verbose`, lista também os que
+    passaram, cada um com a referência e o motivo. Sai com 1 se algo falhou. -/
+def runAll (groups : List (String × List Test)) (verbose : Bool := false) : IO UInt32 := do
   let mut pass := 0
   let mut fail := 0
   let mut pend := 0
@@ -106,13 +118,15 @@ def runAll (groups : List (String × List Test)) : IO UInt32 := do
     IO.println s!"── {g} ({ts.length})"
     for t in ts do
       match t.pending, t.ok with
-      | none, true => pass := pass + 1
+      | none, true =>
+        pass := pass + 1
+        if verbose then IO.println s!"  ok       {t.name}{t.docLines}"
       | none, false =>
         fail := fail + 1
-        IO.println s!"  FALHOU   {t.name}\n           {t.detail}"
+        IO.println s!"  FALHOU   {t.name}\n           {t.detail}{t.docLines}"
       | some why, false =>
         pend := pend + 1
-        IO.println s!"  PENDENTE {t.name} — {why}"
+        IO.println s!"  PENDENTE {t.name} — {why}{t.docLines}"
       | some why, true =>
         fail := fail + 1
         IO.println s!"  FALHOU   {t.name}: passou, mas estava pendente ({why}); remova a marca"
