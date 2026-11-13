@@ -71,10 +71,6 @@ def emitToAstCode (g : Grammar) : String :=
   ] ++ emitGroupArms g .baseType ++ [
     "  | t => FormatError t",
     "",
-    "private def wrapDims (base : MType) : ParseTree → Except String MType"
-  ] ++ emitGroupArms g .dims ++ [
-    "  | t => FormatError t",
-    "",
     "def toType : ParseTree → Except String MType"
   ] ++ emitGroupArms g .type ++ [
     "  | t => FormatError t",
@@ -93,18 +89,6 @@ def emitToAstCode (g : Grammar) : String :=
   ] ++ emitGroupArms g .expr ++ [
     "  | t => FormatError t",
     "",
-    "def toAtomRest (idName : String) : ParseTree → Except String (Expr Unit)"
-  ] ++ emitGroupArms g .atomRest ++ [
-    "  | t => FormatError t",
-    "",
-    "def foldTail (acc : Expr Unit) : ParseTree → Except String (Expr Unit)"
-  ] ++ emitGroupArms g .exprTail ++ [
-    "  | t => FormatError t",
-    "",
-    "def foldIndex (acc : Expr Unit) : ParseTree → Except String (Expr Unit)"
-  ] ++ emitGroupArms g .indexTail ++ [
-    "  | t => FormatError t",
-    "",
     "def toArgs : ParseTree → Except String (List (Expr Unit))"
   ] ++ emitGroupArms g .args ++ [
     "  | t => FormatError t",
@@ -115,10 +99,6 @@ def emitToAstCode (g : Grammar) : String :=
     "",
     "private def toOptExpr : ParseTree → Except String (Option (Expr Unit))"
   ] ++ emitGroupArms g .optExpr ++ [
-    "  | t => FormatError t",
-    "",
-    "private def toIdStmt (idName : String) : ParseTree → Except String (Stmt Unit)"
-  ] ++ emitGroupArms g .idStmt ++ [
     "  | t => FormatError t",
     "",
     "mutual",
