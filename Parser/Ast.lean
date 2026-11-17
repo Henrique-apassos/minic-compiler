@@ -1,3 +1,4 @@
+import Lean.Data.Json
 -- ══════════════════════════════════════════════
 -- AST (ÁRVORE SINTÁTICA ABSTRATA) DO MINIC
 -- ══════════════════════════════════════════════
@@ -11,20 +12,20 @@
 inductive MType where
   | int | float | bool | str | void
   | array (elem : MType)
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, Inhabited, Lean.ToJson
 
 inductive Lit where
   | int   (n : Int)
   | float (x : Float)
   | str   (s : String)
   | bool  (b : Bool)
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, Inhabited, Lean.ToJson
 
 inductive BinOp where
   | add | sub | mul | div
   | eq | ne | lt | le | gt | ge
   | and | or
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, Inhabited, Lean.ToJson
 
 inductive Expr (Ty : Type) where
   | lit   (l : Lit) (ty : Ty)
@@ -35,7 +36,7 @@ inductive Expr (Ty : Type) where
   | call  (f : String) (args : List (Expr Ty)) (ty : Ty)
   | array (elems : List (Expr Ty)) (ty : Ty)            -- [1, 2, 3]
   | index (a i : Expr Ty) (ty : Ty)                     -- a[i]
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, Inhabited, Lean.ToJson
 
 inductive Stmt (Ty : Type) where
   | decl   (t : MType) (name : String) (init : Expr Ty)
@@ -45,14 +46,14 @@ inductive Stmt (Ty : Type) where
   | ifElse (cond : Expr Ty) (thenB : Stmt Ty) (elseB : Option (Stmt Ty))
   | while  (cond : Expr Ty) (body : Stmt Ty)
   | ret    (e : Option (Expr Ty))
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, Inhabited, Lean.ToJson
 
 structure FunDecl (Ty : Type) where
   name   : String
   params : List (MType × String)
   ret    : MType
   body   : Stmt Ty
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, Inhabited, Lean.ToJson
 
 abbrev Program (Ty : Type) := List (FunDecl Ty)
 

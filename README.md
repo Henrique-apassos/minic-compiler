@@ -39,7 +39,7 @@ lake build
 ```
 
 ```bash
-lake exe minic-compiler programa.c
+lake exe minic-compiler programa.minic
 ```
 
 Para rodar todos os testes (verificações do gerador, do motor e da AST, mais os casos portados do Rust):

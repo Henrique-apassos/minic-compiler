@@ -1,29 +1,40 @@
 import GeneratedParser
+import Parser.TypeCheck
+import Lean.Data.Json
 
-def sample : String :=
-"int fatorial(int n) {
-  // comentário
-  if n <= 1 { return 1; }
-  float x = 3.14;
-  int[] v = [1, 2, 3];
-  v[0] = -v[1] * 2;
-  return n * fatorial(n - 1 - 0);
-}"
+open GeneratedParser
+open Lean (ToJson toJson)
+
+/-- Exporta a estrutura em formato JSON formatado (pretty) para um arquivo local. -/
+def exportToJson {α : Type} [ToJson α] (data : α) (filename : String) : IO Unit := do
+  let jsonStr := Lean.Json.pretty (toJson data)
+  IO.FS.writeFile filename jsonStr
+  IO.println s!"[Exportação] Arquivo salvo: {filename}"
 
 /-- `lake exe minic-compiler [arquivo.minic]`: sem arquivo, usa o programa de exemplo.
     Texto → tokens → árvore de derivação → AST tipada, e imprime a AST (ou o erro). -/
-def main (args : List String) : IO UInt32 := do
-  let src ← match args with
-    | path :: _ =>
-      if !path.endsWith ".minic" then
-        IO.eprintln s!"erro: o arquivo '{path}' deve usar a extensão .minic"
-        return 1
-      IO.FS.readFile path
-    | [] => pure sample
-  match GeneratedParser.checkProgram src with
-  | .ok prog =>
-    IO.println prog.show
-    return 0
-  | .error msg =>
-    IO.eprintln s!"erro: {msg}"
-    return 1
+def main (args : List String) : IO Unit := do
+  if args.isEmpty then
+    IO.eprintln "Uso: lake exe minic <arquivo_fonte.minic>"
+    return
+
+  let filePath := args.head!
+  let src ← IO.FS.readFile filePath
+
+  match GeneratedParser.parseProgram src with
+  | .error err =>
+      IO.eprintln s!"Erro Sintático: {err}"
+  | .ok rawAst =>
+      IO.println "Parser concluído."
+      -- Exporta a AST sem tipos (Unit)
+      exportToJson rawAst "ast_raw.json"
+
+      match typeCheckProgram rawAst with
+      | .error err =>
+          IO.eprintln s!"Erro Semântico: {err}"
+      | .ok typedAst =>
+          IO.println "Type Checker concluído."
+          -- Exporta a AST anotada com os tipos (MType)
+          exportToJson typedAst "ast_typed.json"
+
+          IO.println "Front-end executado com sucesso."
