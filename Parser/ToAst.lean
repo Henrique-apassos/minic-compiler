@@ -51,13 +51,9 @@ private def toBaseType : ParseTree → Except String MType
   | .node "BaseType" 4 [_] => pure .void
   | t => FormatError t
 
-private def wrapDims (base : MType) : ParseTree → Except String MType
-  | .node "Dims" 0 [_, _, s2] => wrapDims (.array base) s2
-  | .node "Dims" 1 [] => pure base
-  | t => FormatError t
-
 def toType : ParseTree → Except String MType
-  | .node "Type" 0 [s0, s1] => do wrapDims (← toBaseType s0) s1
+  | .node "Type" 0 [s0, _, _] => do pure (.array (← toType s0))
+  | .node "Type" 1 [s0] => toBaseType s0
   | t => FormatError t
 
 -- ── Operadores Binários ────────────────────────
@@ -80,57 +76,41 @@ private def toBinOp : ParseTree → Except String BinOp
 mutual
 
 def toExpr : ParseTree → Except String (Expr Unit)
+  | .node "LValue" 0 [s0, _, s2, _] => do pure (.index (← toExpr s0) (← toExpr s2) ())
+  | .node "LValue" 1 [s0] => do pure (.var (← lexeme s0) ())
   | .node "Expr" 0 [s0] => toExpr s0
-  | .node "Or" 0 [s0, s1] => do foldTail (← toExpr s0) s1
-  | .node "And" 0 [s0, s1] => do foldTail (← toExpr s0) s1
+  | .node "Or" 0 [s0, _, s2] => do pure (.bin .or (← toExpr s0) (← toExpr s2) ())
+  | .node "Or" 1 [s0] => toExpr s0
+  | .node "And" 0 [s0, _, s2] => do pure (.bin .and (← toExpr s0) (← toExpr s2) ())
+  | .node "And" 1 [s0] => toExpr s0
   | .node "Not" 0 [_, s1] => do pure (.not (← toExpr s1) ())
   | .node "Not" 1 [s0] => toExpr s0
-  | .node "Rel" 0 [s0, s1] => do foldTail (← toExpr s0) s1
-  | .node "Add" 0 [s0, s1] => do foldTail (← toExpr s0) s1
-  | .node "Mul" 0 [s0, s1] => do foldTail (← toExpr s0) s1
+  | .node "Rel" 0 [s0, s1, s2] => do pure (.bin (← toBinOp s1) (← toExpr s0) (← toExpr s2) ())
+  | .node "Rel" 1 [s0] => toExpr s0
+  | .node "Add" 0 [s0, s1, s2] => do pure (.bin (← toBinOp s1) (← toExpr s0) (← toExpr s2) ())
+  | .node "Add" 1 [s0] => toExpr s0
+  | .node "Mul" 0 [s0, s1, s2] => do pure (.bin (← toBinOp s1) (← toExpr s0) (← toExpr s2) ())
+  | .node "Mul" 1 [s0] => toExpr s0
   | .node "Unary" 0 [_, s1] => do pure (.neg (← toExpr s1) ())
   | .node "Unary" 1 [s0] => toExpr s0
-  | .node "Postfix" 0 [s0, s1] => do foldIndex (← toExpr s0) s1
+  | .node "Postfix" 0 [s0, _, s2, _] => do pure (.index (← toExpr s0) (← toExpr s2) ())
+  | .node "Postfix" 1 [s0] => toExpr s0
   | .node "Atom" 0 [s0] => do pure (.lit (.int (← parseInt (← lexeme s0))) ())
   | .node "Atom" 1 [s0] => do pure (.lit (.float (← parseFloat (← lexeme s0))) ())
   | .node "Atom" 2 [s0] => do pure (.lit (.str (unquote (← lexeme s0))) ())
   | .node "Atom" 3 [_] => pure (.lit (.bool true) ())
   | .node "Atom" 4 [_] => pure (.lit (.bool false) ())
-  | .node "Atom" 5 [s0, s1] => do toAtomRest (← lexeme s0) s1
-  | .node "Atom" 6 [_, s1, _] => do pure (.array (← toArgs s1) ())
-  | .node "Atom" 7 [_, s1, _] => toExpr s1
-  | t => FormatError t
-
-def toAtomRest (idName : String) : ParseTree → Except String (Expr Unit)
-  | .node "AtomRest" 0 [_, s1, _] => do pure (.call idName (← toArgs s1) ())
-  | .node "AtomRest" 1 [] => pure (.var idName ())
-  | t => FormatError t
-
-def foldTail (acc : Expr Unit) : ParseTree → Except String (Expr Unit)
-  | .node "OrTail" 0 [_, s1, s2] => do foldTail (.bin .or acc (← toExpr s1) ()) s2
-  | .node "OrTail" 1 [] => pure acc
-  | .node "AndTail" 0 [_, s1, s2] => do foldTail (.bin .and acc (← toExpr s1) ()) s2
-  | .node "AndTail" 1 [] => pure acc
-  | .node "RelTail" 0 [s0, s1, s2] => do foldTail (.bin (← toBinOp s0) acc (← toExpr s1) ()) s2
-  | .node "RelTail" 1 [] => pure acc
-  | .node "AddTail" 0 [s0, s1, s2] => do foldTail (.bin (← toBinOp s0) acc (← toExpr s1) ()) s2
-  | .node "AddTail" 1 [] => pure acc
-  | .node "MulTail" 0 [s0, s1, s2] => do foldTail (.bin (← toBinOp s0) acc (← toExpr s1) ()) s2
-  | .node "MulTail" 1 [] => pure acc
-  | t => FormatError t
-
-def foldIndex (acc : Expr Unit) : ParseTree → Except String (Expr Unit)
-  | .node "Indices" 0 [_, s1, _, s3] => do foldIndex (.index acc (← toExpr s1) ()) s3
-  | .node "Indices" 1 [] => pure acc
-  | .node "PostTail" 0 [_, s1, _, s3] => do foldIndex (.index acc (← toExpr s1) ()) s3
-  | .node "PostTail" 1 [] => pure acc
+  | .node "Atom" 5 [s0] => do pure (.var (← lexeme s0) ())
+  | .node "Atom" 6 [s0, _, s2, _] => do pure (.call (← lexeme s0) (← toArgs s2) ())
+  | .node "Atom" 7 [_, s1, _] => do pure (.array (← toArgs s1) ())
+  | .node "Atom" 8 [_, s1, _] => toExpr s1
   | t => FormatError t
 
 def toArgs : ParseTree → Except String (List (Expr Unit))
-  | .node "Args" 0 [s0, s1] => do pure ((← toExpr s0) :: (← toArgs s1))
+  | .node "Args" 0 [s0] => toArgs s0
   | .node "Args" 1 [] => pure []
-  | .node "ArgsTail" 0 [_, s1, s2] => do pure ((← toExpr s1) :: (← toArgs s2))
-  | .node "ArgsTail" 1 [] => pure []
+  | .node "ArgList" 0 [s0, _, s2] => do pure ((← toArgs s0) ++ [← toExpr s2])
+  | .node "ArgList" 1 [s0] => do pure [← toExpr s0]
   | t => FormatError t
 
 end
@@ -142,11 +122,6 @@ private def toOptExpr : ParseTree → Except String (Option (Expr Unit))
   | .node "OptExpr" 1 [] => pure none
   | t => FormatError t
 
-private def toIdStmt (idName : String) : ParseTree → Except String (Stmt Unit)
-  | .node "IdStmt" 0 [_, s1, _] => do pure (.call idName (← toArgs s1))
-  | .node "IdStmt" 1 [s0, _, s2] => do pure (.assign (← foldIndex (.var idName ()) s0) (← toExpr s2))
-  | t => FormatError t
-
 mutual
 
 def toStmt : ParseTree → Except String (Stmt Unit)
@@ -155,7 +130,8 @@ def toStmt : ParseTree → Except String (Stmt Unit)
   | .node "Stmt" 2 [s0] => toStmt s0
   | .node "Stmt" 3 [s0] => toStmt s0
   | .node "Stmt" 4 [s0] => toStmt s0
-  | .node "Stmt" 5 [s0, s1, _] => do toIdStmt (← lexeme s0) s1
+  | .node "Stmt" 5 [s0, _, s2, _, _] => do pure (.call (← lexeme s0) (← toArgs s2))
+  | .node "Stmt" 6 [s0, _, s2, _] => do pure (.assign (← toExpr s0) (← toExpr s2))
   | .node "IfStmt" 0 [_, s1, s2, s3] => do pure (.ifElse (← toExpr s1) (← toBlock s2) (← toElseOpt s3))
   | .node "WhileStmt" 0 [_, s1, s2] => do pure (.while (← toExpr s1) (← toBlock s2))
   | .node "ReturnStmt" 0 [_, s1, _] => do pure (.ret (← toOptExpr s1))
@@ -172,7 +148,7 @@ def toBlock : ParseTree → Except String (Stmt Unit)
   | t => FormatError t
 
 def toStmtList : ParseTree → Except String (List (Stmt Unit))
-  | .node "StmtList" 0 [s0, s1] => do pure ((← toStmt s0) :: (← toStmtList s1))
+  | .node "StmtList" 0 [s0, s1] => do pure ((← toStmtList s0) ++ [← toStmt s1])
   | .node "StmtList" 1 [] => pure []
   | t => FormatError t
 
@@ -185,10 +161,10 @@ private def toParam : ParseTree → Except String (MType × String)
   | t => FormatError t
 
 private def toParams : ParseTree → Except String (List (MType × String))
-  | .node "Params" 0 [s0, s1] => do pure ((← toParam s0) :: (← toParams s1))
+  | .node "Params" 0 [s0] => toParams s0
   | .node "Params" 1 [] => pure []
-  | .node "ParamsTail" 0 [_, s1, s2] => do pure ((← toParam s1) :: (← toParams s2))
-  | .node "ParamsTail" 1 [] => pure []
+  | .node "ParamList" 0 [s0, _, s2] => do pure ((← toParams s0) ++ [← toParam s2])
+  | .node "ParamList" 1 [s0] => do pure [← toParam s0]
   | t => FormatError t
 
 def toFun : ParseTree → Except String (FunDecl Unit)
@@ -196,7 +172,7 @@ def toFun : ParseTree → Except String (FunDecl Unit)
   | t => FormatError t
 
 private def toFunList : ParseTree → Except String (Program Unit)
-  | .node "FunList" 0 [s0, s1] => do pure ((← toFun s0) :: (← toFunList s1))
+  | .node "FunList" 0 [s0, s1] => do pure ((← toFunList s0) ++ [← toFun s1])
   | .node "FunList" 1 [] => pure []
   | t => FormatError t
 

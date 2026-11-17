@@ -58,8 +58,12 @@ private def scannerSample : String :=
 private def rawLexDFA : LexDFA := buildLexDFA lexicalRules false
 
 def checks : List (String × Bool) := [
-  ("gramática: 42 não-terminais e 85 produções",
-    minicGrammar.nonterminals.length == 42 && minicGrammar.prods.size == 85),
+  ("gramática: 33 não-terminais e 76 produções",
+    minicGrammar.nonterminals.length == 33 && minicGrammar.prods.size == 76),
+  -- Trava a decisão #21: sem caudas com ε nem prefixos fatorados herdados do LL(1).
+  ("gramática sem herança LL(1): nenhuma cauda, IdStmt nem AtomRest",
+    minicGrammar.nonterminals.all fun nt =>
+      !(nt.endsWith "Tail") && nt != "IdStmt" && nt != "AtomRest" && nt != "Indices"),
   ("tabela LR(1) sem conflitos",
     match buildTable minicGrammar with | .ok _ => true | .error _ => false),
   ("LR(1) aceita recursão à esquerda: E → E + n | n",
