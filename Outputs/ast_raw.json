@@ -1,4 +1,20 @@
-[{"ret": "int",
+[{"ret": {"array": {"elem": "float"}},
+  "params": [["float", "a"], ["float", "b"]],
+  "name": "para_vetor",
+  "body":
+  {"block":
+   {"body":
+    [{"decl":
+      {"t": {"array": {"elem": "float"}},
+       "name": "vetor",
+       "init":
+       {"array":
+        {"ty": {},
+         "elems":
+         [{"var": {"ty": {}, "name": "a"}},
+          {"var": {"ty": {}, "name": "b"}}]}}}},
+     {"ret": {"e": {"var": {"ty": {}, "name": "vetor"}}}}]}}},
+ {"ret": "int",
   "params": [],
   "name": "main",
   "body":
@@ -20,4 +36,16 @@
         {"ty": {},
          "op": "add",
          "b": {"var": {"ty": {}, "name": "y"}},
-         "a": {"var": {"ty": {}, "name": "x"}}}}}}]}}}]
+         "a": {"var": {"ty": {}, "name": "x"}}}}}},
+     {"decl":
+      {"t": {"array": {"elem": "float"}},
+       "name": "vetor",
+       "init":
+       {"call":
+        {"ty": {},
+         "f": "para_vetor",
+         "args":
+         [{"var": {"ty": {}, "name": "z"}},
+          {"var": {"ty": {}, "name": "x"}}]}}}},
+     {"call": {"f": "print", "args": [{"var": {"ty": {}, "name": "vetor"}}]}},
+     {"ret": {"e": {"lit": {"ty": {}, "l": {"int": {"n": 0}}}}}}]}}}]

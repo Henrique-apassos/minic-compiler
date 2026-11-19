@@ -1,8 +1,13 @@
-int fatorial(int n) {
-  // comentário
-  if n <= 1 { return 1; }
-  float x = 3.14;
-  int[] v = [1, 2, 3];
-  v[0] = -v[1] * 2;
-  return n * fatorial(n - 1 - 0);
+float[] para_vetor(float a, float b){
+  float[] vetor = [a, b];
+  return vetor;
+}
+
+int main(){
+  int x = 1;
+  float y = 3;
+  float z = x + y;
+  float[] vetor = para_vetor(z, x);
+  print(vetor);
+  return 0;
 }
