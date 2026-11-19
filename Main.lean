@@ -27,7 +27,7 @@ def main (args : List String) : IO Unit := do
   | .ok rawAst =>
       IO.println "Parser concluído."
       -- Exporta a AST sem tipos (Unit)
-      exportToJson rawAst "ast_raw.json"
+      exportToJson rawAst "Outputs/ast_raw.json"
 
       match typeCheckProgram rawAst with
       | .error err =>
@@ -35,6 +35,6 @@ def main (args : List String) : IO Unit := do
       | .ok typedAst =>
           IO.println "Type Checker concluído."
           -- Exporta a AST anotada com os tipos (MType)
-          exportToJson typedAst "ast_typed.json"
+          exportToJson typedAst "Outputs/ast_typed.json"
 
           IO.println "Front-end executado com sucesso."

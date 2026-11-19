@@ -1,0 +1,23 @@
+[{"ret": "int",
+  "params": [],
+  "name": "main",
+  "body":
+  {"block":
+   {"body":
+    [{"decl":
+      {"t": "int",
+       "name": "x",
+       "init": {"lit": {"ty": "int", "l": {"int": {"n": 1}}}}}},
+     {"decl":
+      {"t": "float",
+       "name": "y",
+       "init": {"lit": {"ty": "int", "l": {"int": {"n": 3}}}}}},
+     {"decl":
+      {"t": "float",
+       "name": "z",
+       "init":
+       {"bin":
+        {"ty": "float",
+         "op": "add",
+         "b": {"var": {"ty": "float", "name": "y"}},
+         "a": {"var": {"ty": "int", "name": "x"}}}}}}]}}}]
