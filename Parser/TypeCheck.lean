@@ -210,9 +210,7 @@ partial def checkStmt (env : TypeEnv) : Stmt Unit → Except String (Stmt MType 
 
   | .call f args => do
     let args' ← inferExprList env args
-    let retTy ← checkCallSig env f (args'.map Expr.ty)
-    if retTy != .void then -- Impede que uma função com retorno não perca esse parâmetro
-      throwErr env s!"valor de retorno do tipo '{retTy.show}' da função '{f}' não pode ser descartado"
+    let _ ← checkCallSig env f (args'.map Expr.ty)
     pure (.call f args', env)
 
   | .ifElse cond thenB elseB => do

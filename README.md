@@ -150,7 +150,6 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele valida 
 - **Escopo e segurança**:
   - Variáveis declaradas em blocos `{ ... }` não vazam para o escopo externo, mas o *shadowing* dentro da mesma função é bloqueado.
   - Atribuições validam se o alvo é um *L-value* válido (`var` ou `index`).
-  - Chamadas isoladas como comando (`Stmt.call`) proíbem o descarte de retorno de funções não-`void`.
   - Suporte à função nativa polimórfica `print` (aceita qualquer tipo não-`void`).
 - **De ponta a ponta**: `GeneratedParser.checkProgram (src : String) : Except String (Program MType)`.
 
