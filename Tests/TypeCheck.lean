@@ -8,10 +8,9 @@ import Tests.Harness
 -- lista tudo isso. Referências do TAPL: cap. 11 (extensões simples), 14 (exceções),
 -- 15 (subtipagem), 16 (tipagem algorítmica, joins), 22 (reconstrução), 23 (polimorfismo).
 --
--- Seis grupos documentam o que o verificador já faz. O sétimo, "lacunas conhecidas",
--- escreve o comportamento que o livro pede e o código ainda não tem: cada teste está
--- marcado como pendente (falha esperada). Quando a lacuna for fechada o teste passa e a
--- execução avisa para tirar a marca.
+-- Uma lacuna nova entra como teste pendente (`Test.pend`, falha esperada). Quando ela for
+-- fechada o teste passa e a execução avisa para tirar a marca. O sétimo grupo reúne as que
+-- já foram fechadas.
 
 private def mentions (s frag : String) : Bool := (s.splitOn frag).length > 1
 
@@ -51,7 +50,7 @@ def tyIs (name src : String) (want : MType) : Test :=
   | .ok got => { name, ok := got == want, detail := s!"tipo anotado {got.show}, esperado {want.show}" }
   | .error e => { name, ok := false, detail := e }
 
--- Apaga as anotações de tipo, para comparar com o programa de origem.
+-- Apaga as anotações de tipo e as conversões, para comparar com o programa de origem.
 partial def eraseE : Expr MType → Expr Unit
   | .lit l _ => .lit l ()
   | .var x _ => .var x ()
@@ -61,6 +60,7 @@ partial def eraseE : Expr MType → Expr Unit
   | .call f args _ => .call f (args.map eraseE) ()
   | .array es _ => .array (es.map eraseE) ()
   | .index a i _ => .index (eraseE a) (eraseE i) ()
+  | .coerce e _ => eraseE e
 
 partial def eraseS : Stmt MType → Stmt Unit
   | .decl ty n e => .decl ty n (eraseE e)
@@ -83,6 +83,32 @@ def erasesBack (name src : String) : Test :=
     | .error e => { name, ok := false, detail := s!"recusou: {e}" }
     | .ok typed => { name, ok := eraseProgram typed == p, detail := "a AST mudou além das anotações" }
 
+-- Quantos nós `coerce` o verificador pôs no programa.
+partial def coercionsE : Expr MType → Nat
+  | .lit _ _ | .var _ _ => 0
+  | .neg e _ | .not e _ => coercionsE e
+  | .bin _ a b _ => coercionsE a + coercionsE b
+  | .call _ es _ | .array es _ => (es.map coercionsE).sum
+  | .index a i _ => coercionsE a + coercionsE i
+  | .coerce e _ => coercionsE e + 1
+
+partial def coercionsS : Stmt MType → Nat
+  | .decl _ _ e => coercionsE e
+  | .assign a v => coercionsE a + coercionsE v
+  | .block ss => (ss.map coercionsS).sum
+  | .call _ es => (es.map coercionsE).sum
+  | .ifElse c th el => coercionsE c + coercionsS th + (el.map coercionsS).getD 0
+  | .while c b => coercionsE c + coercionsS b
+  | .ret e => (e.map coercionsE).getD 0
+
+/-- O programa tipado sai com exatamente `want` conversões. -/
+def coercionsAre (name src : String) (want : Nat) : Test :=
+  match parseProgram src >>= typeCheckProgram with
+  | .error e => { name, ok := false, detail := e }
+  | .ok p =>
+    let got := (p.map fun f => coercionsS f.body).sum
+    { name, ok := got == want, detail := s!"{got} conversões, esperadas {want}" }
+
 -- ── 1. Expressões e operadores ─────────────────
 
 def tiposExpressoes : List Test := [
@@ -90,7 +116,7 @@ def tiposExpressoes : List Test := [
     "Sem a regra dos tipos base nenhum programa é tipável; é o ponto de partida do sistema."
     (typeOk "um literal de cada tipo base é aceito"
       "void f() { int a = 1; float b = 2.5; bool c = true; str s = \"x\"; }"),
-  t "TAPL §11.1; Parser/TypeCheck.lean:95"
+  t "TAPL §11.1; Parser/TypeCheck.lean (inferExpr, aritmética)"
     "O tipo anotado na AST é o que o interpretador e o gerador de código vão ler."
     (tyIs "int + int tem tipo int" "int z = 1 + 2;" .int),
   t "TAPL §16.3 (junção de tipos)"
@@ -106,25 +132,28 @@ def tiposExpressoes : List Test := [
   t "TAPL §11.1; sem 'truthiness' (decisão 15)"
     "Garante que só bool serve de condição, sem a confusão do C entre int e bool."
     (typeErr "bool não aceita int" "void f() { bool b = 1; }" "incompatível"),
-  t "Parser/TypeCheck.lean:76-81"
+  t "Parser/TypeCheck.lean (inferExpr, neg)"
     "O menos unário só existe para números."
     (typeErr "o menos unário recusa bool" "void f() { int x = -true; }" "unário"),
-  t "Parser/TypeCheck.lean:83-87"
+  t "Parser/TypeCheck.lean (inferExpr, not)"
     "O não lógico só existe para bool."
     (typeErr "o ! recusa int" "void f() { bool b = !1; }" "espera 'bool'"),
-  t "Parser/TypeCheck.lean:108-112"
+  t "Parser/TypeCheck.lean (inferExpr, and/or)"
     "and e or exigem bool nos dois lados; o teste usa int no esquerdo para provar que ele é checado."
     (typeErr "and recusa operando int" "void f() { bool b = 1 and true; }" "espera 'bool'"),
-  t "Parser/TypeCheck.lean:108-112"
+  t "Parser/TypeCheck.lean (inferExpr, and/or)"
     "Caso positivo que acompanha o negativo: lógica sobre bool é aceita."
     (typeOk "!, and e or combinam bool" "void f() { bool b = !(true and false) or true; }"),
-  t "Parser/TypeCheck.lean:99-102"
+  t "Parser/TypeCheck.lean (inferExpr, ordem)"
     "Ordem só faz sentido entre números."
     (typeErr "< recusa bool" "void f() { bool b = true < false; }" "comparação"),
-  t "Parser/TypeCheck.lean:103-107"
+  t "Parser/TypeCheck.lean (inferExpr, igualdade)"
     "Igualdade entre tipos sem relação seria sempre falsa; é erro, não valor."
     (typeErr "== recusa int contra bool" "void f() { bool b = 1 == true; }" "comparação"),
-  t "Parser/TypeCheck.lean:103-107"
+  t "Parser/TypeCheck.lean (inferExpr, igualdade)"
+    "Uma função void não produz valor, então não há o que comparar, mesmo com os dois tipos iguais."
+    (typeErr "== recusa void contra void" "void g() { } void f() { bool b = g() == g(); }" "comparação"),
+  t "Parser/TypeCheck.lean (inferExpr, igualdade)"
     "Fixa que igualdade vale para tipos iguais, inclusive str."
     (typeOk "== aceita str contra str" "void f() { bool b = \"a\" == \"b\"; }"),
   t "decisões 20 e 63: strings só têm literal e escapes"
@@ -159,13 +188,13 @@ def tiposEscopo : List Test := [
   t "TAPL §11.5"
     "Variável de bloco não pode ser lida depois que o bloco fecha."
     (typeErr "a variável de um bloco não vaza" "void f() { if true { int y = 1; } y = 2; }" "não declarada"),
-  t "Parser/TypeCheck.lean:183-184"
+  t "Parser/TypeCheck.lean (checkStmt, decl)"
     "void é ausência de valor; variável void não tem o que guardar."
     (typeErr "variável do tipo void é recusada" "void f() { void x = 1; }" "void"),
-  t "Parser/TypeCheck.lean:262-264"
+  t "Parser/TypeCheck.lean (checkFun)"
     "Mesmo motivo, para parâmetros."
     (typeErr "parâmetro do tipo void é recusado" "void f(void x) { }" "void"),
-  t "Parser/TypeCheck.lean:265-266"
+  t "Parser/TypeCheck.lean (checkFun)"
     "Dois parâmetros com o mesmo nome tornam a chamada ambígua."
     (typeErr "parâmetro duplicado" "void f(int x, int x) { }" "duplicado")
 ]
@@ -212,10 +241,10 @@ def tiposSubsuncao : List Test := [
   t "TAPL §11.12"
     "O mesmo para dimensões a mais: a[i][j] tem o tipo do elemento mais interno."
     (typeOk "matriz: m[0][0] tem tipo int" "void f() { int[][] m = [[1]]; int x = m[0][0]; }"),
-  t "Parser/TypeCheck.lean:137-138"
+  t "Parser/TypeCheck.lean (inferExpr, index)"
     "O índice é sempre int."
     (typeErr "índice float é recusado" "void f() { int[] a = [1]; int x = a[1.0]; }" "índice de array deve ser 'int'"),
-  t "Parser/TypeCheck.lean:139-141"
+  t "Parser/TypeCheck.lean (inferExpr, index)"
     "Só arrays podem ser indexados."
     (typeErr "indexar um não-array" "void f() { int x = 1; int y = x[0]; }" "não-array"),
   t "TAPL §15.5: gravar em um array é o lado perigoso da covariância"
@@ -232,7 +261,7 @@ def tiposChamadas : List Test := [
   t "TAPL §11.1 (T-App)"
     "Cada argumento é comparado com o parâmetro correspondente."
     (typeErr "tipo de argumento errado" "void g(int v) { } void f() { g(true); }" "argumento incompatível"),
-  t "Parser/TypeCheck.lean:158"
+  t "Parser/TypeCheck.lean (checkCall)"
     "Nome desconhecido não é função."
     (typeErr "função não declarada" "void f() { g(); }" "não declarada"),
   t "TAPL §11.11 (general recursion)"
@@ -241,10 +270,10 @@ def tiposChamadas : List Test := [
   t "TAPL §11.11 (letrec e recursão mútua)"
     "A primeira passada coleta todas as assinaturas antes dos corpos, como o livro exige; por isso a ordem das funções não importa."
     (typeOk "chamar função declarada depois" "void f() { g(); } void g() { }"),
-  t "Parser/TypeCheck.lean:283"
+  t "Parser/TypeCheck.lean (typeCheckProgram)"
     "Duas funções com o mesmo nome tornam a chamada ambígua."
     (typeErr "função redeclarada" "void f() { } void f() { }" "redeclarada"),
-  t "Parser/TypeCheck.lean:191"
+  t "Parser/TypeCheck.lean (checkStmt, decl)"
     "Uma função void não produz valor; usá-la numa expressão é erro."
     (typeErr "usar função void numa expressão" "void g() { } void f() { int x = g(); }" "incompatível"),
   t "TAPL §11.3 (curinga: t1;t2 descarta o valor de t1)"
@@ -254,13 +283,13 @@ def tiposChamadas : List Test := [
     "print é o único polimórfico; aceitar qualquer tipo não-void é o que o checker faz no lugar de variáveis de tipo."
     (typeOk "print aceita int, str, bool e arrays"
       "void f() { print(1); print(\"x\"); print(true); print([1, 2]); }"),
-  t "Parser/TypeCheck.lean:154"
+  t "Parser/TypeCheck.lean (checkCall, print)"
     "Aridade também vale para o embutido."
     (typeErr "print sem argumento" "void f() { print(); }" "espera 1 argumento"),
-  t "Parser/TypeCheck.lean:152"
+  t "Parser/TypeCheck.lean (checkCall, print)"
     "Não há valor void para imprimir."
     (typeErr "print de uma chamada void" "void g() { } void f() { print(g()); }" "void"),
-  t "Parser/TypeCheck.lean:283"
+  t "Parser/TypeCheck.lean (typeCheckProgram)"
     "O nome do embutido é reservado."
     (typeErr "redefinir print" "void print(int x) { }" "redeclarada")
 ]
@@ -268,16 +297,16 @@ def tiposChamadas : List Test := [
 -- ── 5. Comandos e retorno ──────────────────────
 
 def tiposComandos : List Test := [
-  t "Parser/TypeCheck.lean:242-245"
+  t "Parser/TypeCheck.lean (checkStmt, ret)"
     "O valor retornado precisa caber no tipo declarado da função."
     (typeErr "retornar tipo errado" "int f() { return true; }" "tipo de retorno"),
-  t "Parser/TypeCheck.lean:238-239"
+  t "Parser/TypeCheck.lean (checkStmt, ret)"
     "Função com resultado não pode retornar sem valor."
     (typeErr "return vazio em função int" "int f() { return; }" "retorno vazio"),
-  t "Parser/TypeCheck.lean:240-241"
+  t "Parser/TypeCheck.lean (checkStmt, ret)"
     "Função void não tem valor para entregar."
     (typeErr "return com valor em função void" "void f() { return 1; }" "não deve retornar"),
-  t "Parser/TypeCheck.lean:237"
+  t "Parser/TypeCheck.lean (checkStmt, ret)"
     "Caso positivo do retorno vazio."
     (typeOk "return vazio em função void" "void f() { return; }"),
   t "TAPL §11.1 (T-If)"
@@ -286,7 +315,7 @@ def tiposComandos : List Test := [
   t "TAPL §11.11 (laço como recursão)"
     "Mesma regra para o while."
     (typeErr "while com condição int" "void f() { while 1 { } }" "condição do 'while'"),
-  t "Parser/TypeCheck.lean:201-202"
+  t "Parser/TypeCheck.lean (checkStmt, assign)"
     "A atribuição compara o tipo do alvo com o do valor."
     (typeErr "atribuir bool a int" "void f() { int x = 1; x = true; }" "atribuição incompatível"),
   t "decisão 13; TAPL §11.3"
@@ -308,45 +337,68 @@ def tiposPropriedades : List Test := [
       "float g(float a) { return a; } void f() { float[] v = [1, 2.5]; float y = g(3); v[0] = y; }")
 ]
 
--- ── 7. Lacunas conhecidas (pendentes) ──────────
--- Comportamento que o livro pede e o verificador ainda não tem. Falhar é o esperado hoje.
+-- ── 7. Tipo esperado, caminhos de retorno e conversões ──
 
-def tiposLacunas : List Test := [
-  (t "TAPL §15.5 + cap. 22 (tipo esperado)"
-    "Com arrays invariantes, só o tipo esperado resolve um literal numérico. Hoje [1, 2] vira int[] e float[] a = [1, 2]; é recusado, embora float x = 1; seja aceito."
-    (typeOk "o literal [1, 2] é aceito onde se espera float[]" "void f() { float[] a = [1, 2]; }")).pend
-    "o literal é inferido sozinho; falta checar contra o tipo esperado (modo bidirecional)",
-  (t "TAPL cap. 22 (tipo esperado) / §11.12 (nil[T])"
-    "Hoje só a declaração com tipo aceita []."
-    (typeOk "[] é aceito em atribuição" "void f() { int[] a = [1]; a = []; }")).pend
-    "inferExpr não recebe o tipo esperado",
-  (t "TAPL cap. 22 / §11.12"
+def tiposEsperado : List Test := [
+  t "TAPL §15.5 + cap. 22 (tipo esperado)"
+    "Com arrays invariantes, só o tipo esperado resolve um literal numérico: [1, 2] sozinho é int[], mas onde se espera float[] os elementos são convertidos."
+    (typeOk "o literal [1, 2] é aceito onde se espera float[]" "void f() { float[] a = [1, 2]; }"),
+  t "TAPL cap. 22 (tipo esperado)"
+    "O tipo esperado desce para as linhas da matriz, inclusive as vazias e as só de int."
+    (typeOk "matriz float aceita linha de int e linha vazia"
+      "void f() { float[][] m = [[1, 2], [], [2.5]]; }"),
+  t "TAPL §15.2: a subsunção não é simétrica"
+    "O tipo esperado não pode afrouxar a regra: float continua sem caber em int[]."
+    (typeErr "o tipo esperado não deixa float entrar em int[]"
+      "void f() { int[] a = [1, 2.5]; }" "elementos incompatíveis"),
+  t "TAPL cap. 22 (tipo esperado) / §11.12 (nil[T])"
+    "O tipo do [] vem do alvo da atribuição."
+    (typeOk "[] é aceito em atribuição" "void f() { int[] a = [1]; a = []; }"),
+  t "TAPL cap. 22 / §11.12"
     "return [] numa função que devolve int[] é natural."
-    (typeOk "[] é aceito como retorno" "int[] f() { return []; }")).pend
-    "inferExpr não recebe o tipo esperado",
-  (t "TAPL cap. 22 / §11.12"
+    (typeOk "[] é aceito como retorno" "int[] f() { return []; }"),
+  t "TAPL cap. 22 / §11.12"
     "Passar [] a um parâmetro int[] é natural."
-    (typeOk "[] é aceito como argumento" "void g(int[] v) { } void f() { g([]); }")).pend
-    "inferExpr não recebe o tipo esperado",
-  (t "TAPL §15.3 (progresso: um termo bem tipado não trava)"
+    (typeOk "[] é aceito como argumento" "void g(int[] v) { } void f() { g([]); }"),
+  t "TAPL cap. 22"
+    "Sem contexto não há de onde tirar o tipo do elemento; print aceita qualquer tipo e não ajuda."
+    (typeErr "[] sem contexto continua sem tipo" "void f() { print([]); }" "sem contexto"),
+  t "TAPL §15.3 (progresso: um termo bem tipado não trava)"
     "Sem return em algum caminho a função termina sem valor, e a execução trava. É o furo de progresso mais direto do miniC."
-    (typeErr "função int sem return é recusada" "int f() { int x = 1; }" "return")).pend
-    "o verificador não analisa caminhos de retorno",
-  (t "TAPL §15.3 (progresso)"
+    (typeErr "função int sem return é recusada" "int f() { int x = 1; }" "return"),
+  t "TAPL §15.3 (progresso)"
     "O mesmo furo, mais sutil: só um ramo do if retorna."
     (typeErr "return só num ramo do if é recusado"
-      "int f(bool b) { if b { return 1; } }" "return")).pend
-    "o verificador não analisa caminhos de retorno",
-  (t "Parser/TypeCheck.lean:183 só rejeita void no topo"
-    "void[] é um array de nada; a regra de variável void deveria valer para o elemento."
-    (typeErr "void[] é recusado" "void f() { void[] v = []; }" "void")).pend
-    "só o tipo void simples é checado",
-  (t "TAPL §15.6 (semântica de coerção)"
+      "int f(bool b) { if b { return 1; } }" "return"),
+  t "TAPL §15.3 (progresso)"
+    "O corpo do while pode não rodar nenhuma vez, então o return dentro dele não garante nada."
+    (typeErr "return só dentro do while é recusado"
+      "int f(bool b) { while b { return 1; } }" "return"),
+  t "TAPL §15.3 (progresso)"
+    "Caso positivo: os dois ramos retornam, não precisa de return depois do if."
+    (typeOk "return nos dois ramos do if é aceito"
+      "int f(bool b) { if b { return 1; } else { return 2; } }"),
+  t "Parser/TypeCheck.lean (MType.hasVoid)"
+    "void[] é um array de nada; a regra de variável void vale para o elemento."
+    (typeErr "void[] é recusado" "void f() { void[] v = []; }" "void"),
+  t "Parser/TypeCheck.lean (MType.hasVoid)"
+    "Mesmo motivo, para parâmetros."
+    (typeErr "parâmetro void[] é recusado" "void f(void[] v) { }" "void"),
+  t "Parser/TypeCheck.lean (MType.hasVoid)"
+    "Mesmo motivo, para o tipo de retorno; void sozinho continua valendo."
+    (typeErr "retorno void[] é recusado" "void[] f() { return []; }" "void"),
+  t "TAPL §15.6 (semântica de coerção); decisão 60"
     "O livro avisa que Int <: Float pede conversão explícita porque as representações diferem. A AST tem de carregar essa operação para o interpretador."
-    (tyIs "float x = 1; sai com o inicializador do tipo float" "float x = 1;" .float)).pend
-    "não existe nó de coerção; o inicializador continua int (decisão 60)",
-  (t "legibilidade das mensagens"
-    "throwErr concatena sem espaço depois dos dois-pontos: Erro semântico em 'f':variável…"
-    (typeErr "a mensagem separa o nome da função do motivo" "void f() { x = 1; }" "': variável")).pend
-    "throwErr concatena sem espaço (Parser/TypeCheck.lean:45)"
+    (tyIs "float x = 1; sai com o inicializador do tipo float" "float x = 1;" .float),
+  t "TAPL §15.6; decisão 60"
+    "Uma conversão em cada lugar onde int vira float: declaração, atribuição, argumento, retorno, aritmética, comparação e literal de array."
+    (coercionsAre "cada promoção de int para float vira um nó coerce"
+      "float g(float a) { return 1; } void f() { float x = 1; x = 2; x = g(3); x = x + 4; bool b = 5 < x; float[] v = [6, x]; }" 7),
+  t "TAPL §15.6; decisão 60"
+    "Sem mistura de tipos a AST não ganha nós."
+    (coercionsAre "programa sem promoção não tem coerce"
+      "int g(int a) { return a + 1; } void f() { float x = 1.5; bool b = x < 2.5; int[] v = [1, g(2)]; }" 0),
+  t "legibilidade das mensagens"
+    "O nome da função e o motivo do erro são partes separadas da mensagem."
+    (typeErr "a mensagem separa o nome da função do motivo" "void f() { x = 1; }" "': variável")
 ]

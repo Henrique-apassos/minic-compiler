@@ -29,7 +29,9 @@
      {"decl":
       {"t": "float",
        "name": "y",
-       "init": {"lit": {"ty": "int", "l": {"int": {"n": 3}}}}}},
+       "init":
+       {"coerce":
+        {"ty": "float", "e": {"lit": {"ty": "int", "l": {"int": {"n": 3}}}}}}}},
      {"decl":
       {"t": "float",
        "name": "z",
@@ -38,7 +40,9 @@
         {"ty": "float",
          "op": "add",
          "b": {"var": {"ty": "float", "name": "y"}},
-         "a": {"var": {"ty": "int", "name": "x"}}}}}},
+         "a":
+         {"coerce":
+          {"ty": "float", "e": {"var": {"ty": "int", "name": "x"}}}}}}}},
      {"decl":
       {"t": {"array": {"elem": "float"}},
        "name": "vetor",
@@ -48,7 +52,8 @@
          "f": "para_vetor",
          "args":
          [{"var": {"ty": "float", "name": "z"}},
-          {"var": {"ty": "int", "name": "x"}}]}}}},
+          {"coerce":
+           {"ty": "float", "e": {"var": {"ty": "int", "name": "x"}}}}]}}}},
      {"call":
       {"f": "print",
        "args":

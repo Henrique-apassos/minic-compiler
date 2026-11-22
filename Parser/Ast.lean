@@ -6,7 +6,7 @@ import Lean.Data.Json
 -- Modelo: `src/ir/ast.rs` do exemplo em Rust, sem ponteiros.
 --
 -- `Ty` é o tipo anotado em cada expressão. O parser usa `Unit` (nada ainda);
--- o verificador de tipos, no futuro, troca por `MType` sem reescrever a AST.
+-- o verificador de tipos troca por `MType` e só acrescenta os nós `coerce`.
 
 /-- Os tipos da linguagem. `int[][]` é `array (array int)`. -/
 inductive MType where
@@ -36,6 +36,7 @@ inductive Expr (Ty : Type) where
   | call  (f : String) (args : List (Expr Ty)) (ty : Ty)
   | array (elems : List (Expr Ty)) (ty : Ty)            -- [1, 2, 3]
   | index (a i : Expr Ty) (ty : Ty)                     -- a[i]
+  | coerce (e : Expr Ty) (ty : Ty)                      -- int → float; só o verificador de tipos cria
   deriving Repr, BEq, Inhabited, Lean.ToJson
 
 inductive Stmt (Ty : Type) where
@@ -85,6 +86,7 @@ def Expr.show {Ty : Type} : Expr Ty → String
   | .call f args _ => f ++ "(" ++ ", ".intercalate (args.map Expr.show) ++ ")"
   | .array es _ => "[" ++ ", ".intercalate (es.map Expr.show) ++ "]"
   | .index a i _ => s!"{a.show}[{i.show}]"
+  | .coerce e _ => e.show                               -- implícita no texto do miniC
 
 def Stmt.show {Ty : Type} (ind : String) : Stmt Ty → String
   | .decl t x e => s!"{ind}{t.show} {x} = {e.show};"
