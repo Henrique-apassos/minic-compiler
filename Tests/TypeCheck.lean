@@ -151,6 +151,9 @@ def tiposExpressoes : List Test := [
     "Igualdade entre tipos sem relação seria sempre falsa; é erro, não valor."
     (typeErr "== recusa int contra bool" "void f() { bool b = 1 == true; }" "comparação"),
   t "Parser/TypeCheck.lean (inferExpr, igualdade)"
+    "Uma função void não produz valor, então não há o que comparar, mesmo com os dois tipos iguais."
+    (typeErr "== recusa void contra void" "void g() { } void f() { bool b = g() == g(); }" "comparação"),
+  t "Parser/TypeCheck.lean (inferExpr, igualdade)"
     "Fixa que igualdade vale para tipos iguais, inclusive str."
     (typeOk "== aceita str contra str" "void f() { bool b = \"a\" == \"b\"; }"),
   t "decisões 20 e 63: strings só têm literal e escapes"

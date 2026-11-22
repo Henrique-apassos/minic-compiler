@@ -115,7 +115,7 @@ partial def inferExpr (env : TypeEnv) : Expr Unit → Except String (Expr MType)
       | some t => pure (.bin op (coerceTo t a') (coerceTo t b') .bool)
       | none => throwErr env s!"comparação '{op.show}' incompatível entre '{ta.show}' e '{tb.show}'"
     | .eq | .ne =>
-      if ta == tb then
+      if ta == tb && ta != .void then
         pure (.bin op a' b' .bool)
       else match numericComb ta tb with
         | some t => pure (.bin op (coerceTo t a') (coerceTo t b') .bool)

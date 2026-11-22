@@ -116,7 +116,7 @@ Vêm de uma análise do projeto contra o Engineering a Compiler (§2.4, 2.5, 3.4
 | 66 | Medições em Python, reproduzindo os algoritmos do projeto: LR(1) canônico com 448 estados, 3526 ações, 811 gotos e 0 conflitos (idêntico ao gerador); a mesma gramática com recursão à esquerda daria 370 estados (o gerador real, depois de #21, deu 368); 139 núcleos LR(0) (piso de um LALR); DFA do scanner com 215 estados, 73 minimizados. Base para rever #21 e #32. | Medição | Registrada |
 | 67 | Literal de array é checado contra o **tipo esperado** quando há um (declaração, atribuição, argumento, retorno): `[]` e `float[] a = [1, 2];` são aceitos. Sem contexto (`print([])`) o `[]` continua sem tipo. Arrays seguem invariantes (TAPL §15.5, cap. 22). | Implementação | Implementada |
 | 68 | Função que não é `void` precisa de **`return` em todos os caminhos** (TAPL §15.3). `if` só conta com `else`; `while` nunca conta, nem `while true`. | Implementação | Implementada |
-| 69 | `void[]` é recusado em variável, parâmetro, retorno e literal de array. | Implementação | Implementada |
+| 69 | `void[]` é recusado em variável, parâmetro, retorno e literal de array; `==` e `!=` entre valores `void` também. | Implementação | Implementada |
 
 ## Em aberto
 
