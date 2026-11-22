@@ -1,6 +1,7 @@
 import Tests
 import Tests.Syntax
 import Tests.Programs
+import Tests.Scanner
 import Tests.TypeCheck
 
 /-- `lake test` (ou `lake test -- --verbose` para listar cada teste com referência e motivo).
@@ -8,6 +9,11 @@ import Tests.TypeCheck
 def main (args : List String) : IO UInt32 := do
   runAll [
     ("gerador, motor e AST", checks.map fun (name, ok) => ({ name, ok } : Test)),
+    ("scanner: minimização do DFA", scannerMinimizacao),
+    ("scanner: classe de caracteres", scannerClasse),
+    ("scanner: strings", scannerStrings),
+    ("scanner: comentários de bloco", scannerComentarios),
+    ("scanner: caracteres fora do alfabeto", scannerForaDoAlfabeto),
     ("literais", literais),
     ("identificadores", identificadores),
     ("expressões", expressoes),
