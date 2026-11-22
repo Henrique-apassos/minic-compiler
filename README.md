@@ -138,7 +138,7 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele valida 
 
 ### 4. AST e conversão gerada (`Parser/Ast.lean`, `Parser/ToAst.lean`)
 
-- **Tipos da AST**: `MType` (com `array` para `T[]`), `Lit`, `BinOp`, `Expr Ty`, `Stmt Ty`, `FunDecl Ty` e `Program Ty`. O modelo é o `ast.rs` do exemplo em Rust, sem ponteiros. `Ty` é o tipo anotado em cada expressão: o parser usa `Unit` e o verificador de tipos substitui por `MType` sem reescrever a AST.
+- **Tipos da AST**: `MType` (com `array` para `T[]`), `Lit`, `BinOp`, `Expr Ty`, `Stmt Ty`, `FunDecl Ty` e `Program Ty`. O modelo é o `ast.rs` do exemplo em Rust, sem ponteiros. `Ty` é o tipo anotado em cada expressão: o parser usa `Unit` e o verificador de tipos substitui por `MType`, acrescentando só os nós `coerce` (conversão de `int` para `float`).
 - **Conversão gerada**: `Parser/ToAst.lean` é gerado por `lake exe gen-parser` com uma função por grupo de não-terminais (`toProgram`, `toFun`, `toType`, `toStmt`, `toExpr`), escolhendo pelo nome e pela alternativa. Uma árvore fora do formato vira `Except.error` ("árvore mal formada em Atom.5") em vez de travar. Recursão estrutural, sem `partial`.
 - **Associatividade**: a recursão à esquerda da gramática já produz árvores que pendem para a esquerda; `a - b - c` vira `(a - b) - c` direto, e a ação de `Add := Add AddOp Mul` monta `.bin op (toExpr s0) (toExpr s2)`. Não há acumulador. Índices (`a[i][j]`), listas e tipos (`T[][]`) seguem o mesmo padrão.
 - **De ponta a ponta**: `GeneratedParser.parseProgram (src : String) : Except String (Program Unit)`.
@@ -146,7 +146,10 @@ Sem arquivo, o executável usa o programa de exemplo de `Main.lean`. Ele valida 
 ### 5. Análise semântica e verificação de tipos (`Parser/TypeCheck.lean`)
 
 - **Duas passadas**: a primeira coleta as assinaturas de todas as funções declaradas (permitindo recursão mútua e impedindo redeclarações); a segunda verifica o corpo de cada função.
-- **Inferência *bottom-up* e coerção implícita**: cada `Expr Unit` é transformada em `Expr MType`, com promoção implícita de `int` para `float` em atribuições, retornos, argumentos, operações numéricas e literais de array (ex.: `[1, 2.5]` é promovido para `float[]`).
+- **Inferência *bottom-up* e tipo esperado**: cada `Expr Unit` é transformada em `Expr MType`. `inferExpr` descobre o tipo da expressão sozinha; `checkExpr` recebe o tipo que o contexto espera (declaração, atribuição, argumento ou retorno) e, com ele, dá tipo a `[]` e aceita `float[] a = [1, 2];`.
+- **Coerção explícita na AST**: onde `int` vira `float` (declarações, atribuições, retornos, argumentos, operações e comparações numéricas, literais de array) a expressão é embrulhada num nó `coerce`.
+- **Caminhos de retorno**: função que não é `void` precisa de `return` em todos os caminhos. Um `if` só conta com `else`, e o `while` não conta (o corpo pode não rodar).
+- **`void`**: não é tipo de variável nem de parâmetro, e `void[]` não existe em lugar nenhum.
 - **Escopo e segurança**:
   - Variáveis declaradas em blocos `{ ... }` não vazam para o escopo externo, mas o *shadowing* dentro da mesma função é bloqueado.
   - Atribuições validam se o alvo é um *L-value* válido (`var` ou `index`).
@@ -223,7 +226,7 @@ Saída (trecho):
 lake test
 ```
 
-Roda `Tests/Main.lean` (exe `parserTests`), que reúne as 27 verificações de `Tests.lean` (gerador, motor e AST) e os grupos portados de `MiniC/tests/parser.rs` e `program.rs`, com os mesmos nomes; os fixtures `.minic` estão em `Tests/fixtures/`. A saída termina com o total (`N testes: X passaram, Y falharam, Z pendentes`) e o código de saída é 1 se algo falhar. Pendente (`Test.pend`) = lacuna conhecida do compilador: não falha a execução, mas se passar o teste falha pedindo para remover a marca. Nenhum teste está pendente hoje. Detalhes em `docs/DECISOES.md` (#37 e #59).
+Roda `Tests/Main.lean` (exe `parserTests`), que reúne as verificações de `Tests.lean` (gerador, motor e AST), os testes do scanner (`Tests/Scanner.lean`), os grupos portados de `MiniC/tests/parser.rs` e `program.rs`, com os mesmos nomes, e os do verificador de tipos (`Tests/TypeCheck.lean`); os fixtures `.minic` estão em `Tests/fixtures/`. A saída termina com o total (`N testes: X passaram, Y falharam, Z pendentes`) e o código de saída é 1 se algo falhar. Pendente (`Test.pend`) = lacuna conhecida do compilador: não falha a execução, mas se passar o teste falha pedindo para remover a marca. Nenhum teste está pendente hoje. Detalhes em `docs/DECISOES.md` (#37 e #59).
 
 ## Limitações atuais e próximos passos
 

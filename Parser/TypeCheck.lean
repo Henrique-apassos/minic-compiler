@@ -26,12 +26,24 @@ def Expr.ty : Expr MType → MType
   | .call _ _ t    => t
   | .array _ t     => t
   | .index _ _ t   => t
+  | .coerce _ t    => t
+
+/-- `void`, ou um array de `void` em qualquer profundidade: não há valor para guardar. -/
+def MType.hasVoid : MType → Bool
+  | .void    => true
+  | .array t => t.hasVoid
+  | _        => false
 
 /-- Verifica se um valor do tipo `src` pode ser atribuído/passado para um alvo `dst`.
     Permite promoção implícita de `int` para `float`. -/
 
 def isCompatible (dst src : MType) : Bool :=
   dst == src || (dst == .float && src == .int)
+
+/-- Leva uma expressão já compatível ao tipo `dst`. A promoção `int → float` muda a
+    representação do valor, então vira um nó `coerce` na AST (TAPL §15.6). -/
+def coerceTo (dst : MType) (e : Expr MType) : Expr MType :=
+  if e.ty == dst then e else .coerce e dst
 
 -- Combina os tipos numéricos (`int` e `float`)
 def numericComb : MType → MType → Option MType
@@ -42,7 +54,7 @@ def numericComb : MType → MType → Option MType
   | _, _           => none
 
 private def throwErr (env : TypeEnv) (msg : String) : Except String α :=
-  throw s!"Erro semântico em '{env.fnName}':{msg}"
+  throw s!"Erro semântico em '{env.fnName}': {msg}"
 
 -- ══════════════════════════════════════════════
 -- 2. FUNÇÕES NATIVAS (BUILT-INS)
@@ -56,6 +68,8 @@ def builtins : List (String × Option (List MType) × MType) := [
 -- ══════════════════════════════════════════════
 -- 3. CHECAGEM DE EXPRESSÕES
 -- ══════════════════════════════════════════════
+-- Dois modos (TAPL cap. 22): `inferExpr` descobre o tipo da expressão sozinha; `checkExpr`
+-- recebe o tipo que o contexto espera (declaração, atribuição, argumento ou retorno).
 
 mutual
 
@@ -94,17 +108,18 @@ partial def inferExpr (env : TypeEnv) : Expr Unit → Except String (Expr MType)
     match op with
     | .add | .sub | .mul | .div =>
       match numericComb ta tb with
-      | some tres => pure (.bin op a' b' tres)
+      | some tres => pure (.bin op (coerceTo tres a') (coerceTo tres b') tres)
       | none => throwErr env s!"operador '{op.show}' incompatível entre '{ta.show}' e '{tb.show}'"
     | .lt | .le | .gt | .ge =>
       match numericComb ta tb with
-      | some _ => pure (.bin op a' b' .bool)
+      | some t => pure (.bin op (coerceTo t a') (coerceTo t b') .bool)
       | none => throwErr env s!"comparação '{op.show}' incompatível entre '{ta.show}' e '{tb.show}'"
     | .eq | .ne =>
-      if ta == tb || (numericComb ta tb).isSome then
+      if ta == tb then
         pure (.bin op a' b' .bool)
-      else
-        throwErr env s!"comparação '{op.show}' incompatível entre '{ta.show}' e '{tb.show}'"
+      else match numericComb ta tb with
+        | some t => pure (.bin op (coerceTo t a') (coerceTo t b') .bool)
+        | none => throwErr env s!"comparação '{op.show}' incompatível entre '{ta.show}' e '{tb.show}'"
     | .and | .or =>
       if ta == .bool && tb == .bool then
         pure (.bin op a' b' .bool)
@@ -112,8 +127,7 @@ partial def inferExpr (env : TypeEnv) : Expr Unit → Except String (Expr MType)
         throwErr env s!"operador '{op.show}' espera 'bool', mas encontrou '{ta.show}' e '{tb.show}'"
 
   | .call f args () => do
-    let args' ← inferExprList env args
-    let t ← checkCallSig env f (args'.map Expr.ty)
+    let (args', t) ← checkCall env f args
     pure (.call f args' t)
 
   | .array elems () => do
@@ -129,7 +143,9 @@ partial def inferExpr (env : TypeEnv) : Expr Unit → Except String (Expr MType)
         else match numericComb acc e.ty with
           | some lub => pure lub
           | none => throwErr env s!"elementos incompatíveis no array: '{acc.show}' e '{e.ty.show}'"
-      pure (.array all (.array elemTy))
+      if elemTy.hasVoid then
+        throwErr env s!"array não pode ter elementos do tipo '{elemTy.show}'"
+      pure (.array (all.map (coerceTo elemTy)) (.array elemTy))
 
   | .index arr idx () => do
     let arr' ← inferExpr env arr
@@ -140,29 +156,51 @@ partial def inferExpr (env : TypeEnv) : Expr Unit → Except String (Expr MType)
     | .array elemTy => pure (.index arr' idx' elemTy)
     | t => throwErr env s!"tentativa de indexar um valor não-array do tipo '{t.show}'"
 
+  -- O parser não produz `coerce`; se aparecer, a conversão é decidida de novo aqui.
+  | .coerce e () => inferExpr env e
+
 partial def inferExprList (env : TypeEnv) : List (Expr Unit) → Except String (List (Expr MType))
   | []      => pure []
   | e :: es => do pure ((← inferExpr env e) :: (← inferExprList env es))
 
-partial def checkCallSig (env : TypeEnv) (f : String) (argTypes : List MType) : Except String MType := do
+/-- Verifica `e` contra o tipo `expected`. Um literal de array é checado elemento a elemento, o
+    que dá tipo a `[]` e deixa `[1, 2]` valer como `float[]`; qualquer outra expressão é inferida,
+    comparada e, se preciso, convertida. `mismatch` monta a mensagem a partir do tipo encontrado. -/
+partial def checkExpr (env : TypeEnv) (expected : MType) (e : Expr Unit)
+    (mismatch : MType → String) : Except String (Expr MType) := do
+  match expected, e with
+  | .array elemTy, .array elems () =>
+    let elems' ← elems.mapM fun el => checkExpr env elemTy el fun found =>
+      s!"elementos incompatíveis no array: esperava '{elemTy.show}', encontrou '{found.show}'"
+    pure (.array elems' expected)
+  | _, _ =>
+    let e' ← inferExpr env e
+    if !isCompatible expected e'.ty then
+      throwErr env (mismatch e'.ty)
+    pure (coerceTo expected e')
+
+/-- Verifica uma chamada e devolve os argumentos anotados e o tipo do resultado. -/
+partial def checkCall (env : TypeEnv) (f : String) (args : List (Expr Unit)) :
+    Except String (List (Expr MType) × MType) := do
   -- 1. Verifica se é built-in especial (como `print`)
   if f == "print" then
-    match argTypes with
-    | [t] =>
-      if t == .void then throwErr env "não é possível passar 'void' para 'print'"
-      else pure .void
-    | _ => throwErr env s!"'print' espera 1 argumento, mas recebeu {argTypes.length}"
+    match args with
+    | [a] =>
+      let a' ← inferExpr env a
+      if a'.ty == .void then
+        throwErr env "não é possível passar 'void' para 'print'"
+      pure ([a'], .void)
+    | _ => throwErr env s!"'print' espera 1 argumento, mas recebeu {args.length}"
   else
     -- 2. Verifica na tabela de funções
     match env.funs[f]? with
     | none => throwErr env s!"função '{f}' não declarada"
     | some sig =>
-      if sig.params.length != argTypes.length then
-        throwErr env s!"função '{f}' espera {sig.params.length} argumento(s), mas recebeu {argTypes.length}"
-      for (expected, found) in sig.params.zip argTypes do
-        if !isCompatible expected found then
-          throwErr env s!"argumento incompatível em '{f}': esperava '{expected.show}', encontrou '{found.show}'"
-      pure sig.ret
+      if sig.params.length != args.length then
+        throwErr env s!"função '{f}' espera {sig.params.length} argumento(s), mas recebeu {args.length}"
+      let args' ← (sig.params.zip args).mapM fun (expected, a) => checkExpr env expected a fun found =>
+        s!"argumento incompatível em '{f}': esperava '{expected.show}', encontrou '{found.show}'"
+      pure (args', sig.ret)
 
 end
 
@@ -180,16 +218,12 @@ mutual
 
 partial def checkStmt (env : TypeEnv) : Stmt Unit → Except String (Stmt MType × TypeEnv)
   | .decl t name init => do
-    if t == .void then
-      throwErr env s!"variável '{name}' não pode ser declarada com tipo 'void'"
+    if t.hasVoid then
+      throwErr env s!"variável '{name}' não pode ser declarada com tipo '{t.show}'"
     if env.vars.contains name then
       throwErr env s!"variável '{name}' já foi declarada nesta função"
-    -- Caso especial: inicialização com array vazio `int[] v = [];`
-    let init' ← match t, init with
-      | .array _, .array [] () => pure (.array [] t)
-      | _, _ => inferExpr env init
-    if !isCompatible t init'.ty then
-      throwErr env s!"inicialização incompatível em '{name}': esperava '{t.show}', encontrou '{init'.ty.show}'"
+    let init' ← checkExpr env t init fun found =>
+      s!"inicialização incompatível em '{name}': esperava '{t.show}', encontrou '{found.show}'"
     let env' := { env with vars := env.vars.insert name t }
     pure (.decl t name init', env')
 
@@ -197,9 +231,8 @@ partial def checkStmt (env : TypeEnv) : Stmt Unit → Except String (Stmt MType 
     if !isLValue target then
       throwErr env "alvo de atribuição inválido"
     let target' ← inferExpr env target
-    let val' ← inferExpr env val
-    if !isCompatible target'.ty val'.ty then
-      throwErr env s!"atribuição incompatível: alvo é '{target'.ty.show}', valor é '{val'.ty.show}'"
+    let val' ← checkExpr env target'.ty val fun found =>
+      s!"atribuição incompatível: alvo é '{target'.ty.show}', valor é '{found.show}'"
     pure (.assign target' val', env)
 
   | .block stmts => do
@@ -209,8 +242,7 @@ partial def checkStmt (env : TypeEnv) : Stmt Unit → Except String (Stmt MType 
     pure (.block stmts', env)
 
   | .call f args => do
-    let args' ← inferExprList env args
-    let _ ← checkCallSig env f (args'.map Expr.ty)
+    let (args', _) ← checkCall env f args
     pure (.call f args', env)
 
   | .ifElse cond thenB elseB => do
@@ -240,9 +272,8 @@ partial def checkStmt (env : TypeEnv) : Stmt Unit → Except String (Stmt MType 
     | some _, .void =>
       throwErr env "função 'void' não deve retornar um valor"
     | some e, expected =>
-      let e' ← inferExpr env e
-      if !isCompatible expected e'.ty then
-        throwErr env s!"tipo de retorno incompatível: esperava '{expected.show}', encontrou '{e'.ty.show}'"
+      let e' ← checkExpr env expected e fun found =>
+        s!"tipo de retorno incompatível: esperava '{expected.show}', encontrou '{found.show}'"
       pure (.ret (some e'), env)
 
 partial def checkStmtList (env : TypeEnv) : List (Stmt Unit) → Except String (List (Stmt MType))
@@ -257,17 +288,30 @@ end
 -- ══════════════════════════════════════════════
 -- 5. CHECAGEM DE FUNÇÕES E DO PROGRAMA
 -- ══════════════════════════════════════════════
+
+/-- Todo caminho por este comando passa por um `return`. O `while` nunca conta, porque o corpo
+    pode não rodar nenhuma vez. -/
+def Stmt.alwaysReturns {Ty : Type} : Stmt Ty → Bool
+  | .ret _ => true
+  | .block ss => ss.attach.any fun ⟨s, _⟩ => s.alwaysReturns
+  | .ifElse _ thenB (some elseB) => thenB.alwaysReturns && elseB.alwaysReturns
+  | _ => false
+
 def checkFun (funs : Std.HashMap String FunSig) (f : FunDecl Unit) : Except String (FunDecl MType) := do
+  if f.ret != .void && f.ret.hasVoid then
+    throw s!"erro semântico em '{f.name}': a função não pode retornar '{f.ret.show}'"
   let mut vars : Std.HashMap String MType := {}
   for (pt, pname) in f.params do
-    if pt == .void then
-      throw s!"erro semântico em '{f.name}': parâmetro '{pname}' não pode ser 'void'"
+    if pt.hasVoid then
+      throw s!"erro semântico em '{f.name}': parâmetro '{pname}' não pode ser '{pt.show}'"
     if vars.contains pname then
       throw s!"erro semântico em '{f.name}': parâmetro duplicado '{pname}'"
     vars := vars.insert pname pt
 
   let env : TypeEnv := { funs := funs, vars := vars, retType := f.ret, fnName := f.name }
   let (body', _) ← checkStmt env f.body
+  if f.ret != .void && !f.body.alwaysReturns then
+    throw s!"erro semântico em '{f.name}': a função retorna '{f.ret.show}', mas nem todo caminho termina em 'return'"
   pure { name := f.name, params := f.params, ret := f.ret, body := body' }
 
 /-- Analisa semanticamente todo o programa e devolve a AST anotada com `MType`. -/

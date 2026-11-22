@@ -28,5 +28,5 @@ def main (args : List String) : IO UInt32 := do
     ("tipos: funções e chamadas", tiposChamadas),
     ("tipos: comandos e retorno", tiposComandos),
     ("tipos: propriedades do conjunto", tiposPropriedades),
-    ("tipos: lacunas conhecidas (pendentes)", tiposLacunas)
+    ("tipos: tipo esperado, retorno e conversões", tiposEsperado)
   ] (verbose := args.contains "--verbose")
