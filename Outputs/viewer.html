@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniC · AST raw × typed</title>
+<style>
+  :root {
+    --bg:#fafaf8; --panel:#fff; --ink:#1d1d1b; --dim:#8a8a84; --line:#e4e3dd;
+    --tag:#5b3fd0; --tag-bg:#efeaff; --type:#0b7a4b; --type-bg:#e3f5ec;
+    --new:#b45309; --new-bg:#fff1d6; --warn:#b42318; --warn-bg:#fde8e6;
+    --lit:#1f5fbf; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161615; --panel:#1f1f1d; --ink:#ecebe6; --dim:#8f8f88; --line:#343431;
+      --tag:#b3a1ff; --tag-bg:#2a2447; --type:#6fd6a3; --type-bg:#12332a;
+      --new:#f5b660; --new-bg:#3a2a10; --warn:#ff9b8f; --warn-bg:#3b1815; --lit:#8db8ff; }
+  }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui,sans-serif }
+  header { padding:16px 24px; border-bottom:1px solid var(--line); display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center }
+  h1 { font-size:16px; margin:0; font-weight:600 }
+  .sp { flex:1 }
+  button, label.btn { font:inherit; padding:5px 12px; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:6px; cursor:pointer }
+  button:hover, label.btn:hover { border-color:var(--dim) }
+  button.on { background:var(--tag-bg); border-color:var(--tag); color:var(--tag) }
+  input[type=file] { display:none }
+  #status { padding:0 24px; display:flex; flex-direction:column; gap:6px }
+  .note { padding:8px 12px; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-size:13px }
+  .note.warn { background:var(--warn-bg); border-color:var(--warn); color:var(--warn) }
+  #summary { padding:12px 24px 0; display:flex; gap:10px; flex-wrap:wrap }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:6px 12px }
+  .stat b { font-size:18px; font-family:var(--mono); margin-right:6px }
+  .stat.new b { color:var(--new) }
+  main { display:grid; grid-template-columns:minmax(240px,.7fr) 1fr 1fr; gap:16px; padding:16px 24px 32px }
+  @media (max-width:1200px) { main { grid-template-columns:1fr 1fr } #src-sec { grid-column:1 / -1 } }
+  @media (max-width:800px) { main { grid-template-columns:1fr } }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:10px; min-width:0; overflow:hidden }
+  section > h2 { margin:0; padding:10px 14px; font-size:13px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:baseline }
+  section > h2 small { color:var(--dim); font-weight:400 }
+  .body { padding:10px 14px 14px; overflow:auto; max-height:75vh; font-family:var(--mono); font-size:12.5px }
+  .empty { color:var(--dim); font-family:system-ui; padding:6px 0 }
+  pre { margin:0; white-space:pre-wrap; word-break:break-word }
+  /* árvore */
+  .n { margin-left:14px; border-left:1px solid var(--line); padding-left:10px }
+  .row { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:baseline; padding:1px 0 }
+  .k { color:var(--dim) }
+  .tag { background:var(--tag-bg); color:var(--tag); padding:0 7px; border-radius:4px; font-weight:600 }
+  .tag.new { background:var(--new-bg); color:var(--new) }
+  .ty { background:var(--type-bg); color:var(--type); padding:0 7px; border-radius:10px }
+  .ty.none { background:transparent; color:var(--dim); border:1px dashed var(--line) }
+  .val { color:var(--lit) }
+  .fn { font-weight:600; font-size:13px }
+  details > summary { cursor:pointer; list-style:none; padding:1px 0 }
+  details > summary::before { content:"▸"; color:var(--dim); display:inline-block; width:14px }
+  details[open] > summary::before { content:"▾" }
+  summary::-webkit-details-marker { display:none }
+  /* código-fonte */
+  .code { display:grid; grid-template-columns:auto 1fr; gap:0 12px }
+  .ln { color:var(--dim); text-align:right; user-select:none }
+  .code pre { white-space:pre }
+  .kw { color:var(--tag); font-weight:600 }
+  .tp { color:var(--type) }
+  .num { color:var(--lit) }
+  .cm { color:var(--dim); font-style:italic }
+  footer { padding:0 24px 24px; color:var(--dim); font-size:12px }
+  code { font-family:var(--mono) }
+</style>
+</head>
+<body>
+<header>
+  <h1>MiniC · AST raw × typed</h1>
+  <button id="reload">Recarregar</button>
+  <button id="auto" class="on">Auto-atualizar (2s)</button>
+  <button id="mode">Ver JSON</button>
+  <span class="sp"></span>
+  <label class="btn">Abrir .minic<input type="file" id="fsrc" accept=".minic,.txt"></label>
+  <label class="btn">Abrir ast_raw.json<input type="file" id="fraw" accept=".json"></label>
+  <label class="btn">Abrir ast_typed.json<input type="file" id="ftyped" accept=".json"></label>
+</header>
+<div id="status"></div>
+<div id="summary"></div>
+<main>
+  <section id="src-sec"><h2>programa <small>o que foi compilado</small><span class="sp"></span><small id="t-src"></small></h2><div class="body" id="src"></div></section>
+  <section><h2>ast_raw.json <small>o que o parser entendeu</small><span class="sp"></span><small id="t-raw"></small></h2><div class="body" id="raw"></div></section>
+  <section><h2>ast_typed.json <small>depois do verificador de tipos</small><span class="sp"></span><small id="t-typed"></small></h2><div class="body" id="typed"></div></section>
+</main>
+<footer>
+  Servido por HTTP, a página relê os arquivos sozinha a cada 2s. Aberta por duplo-clique (<code>file://</code>), o navegador bloqueia a leitura: use os botões de abrir arquivo.
+  O fonte vem de <code>Outputs/source.minic</code>, que o compilador grava a cada execução. Cor âmbar = nó que só existe na árvore tipada (conversão inserida pelo verificador).
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const state = { src:null, raw:null, typed:null, mtime:{src:null, raw:null, typed:null}, mode:"tree", manual:{src:false, raw:false, typed:false} };
+const FILES = { src:"source.minic", raw:"ast_raw.json", typed:"ast_typed.json" };
+
+/* ---------- carga ---------- */
+async function load(which, file) {
+  try {
+    const r = await fetch(FILES[which] + "?t=" + Date.now(), { cache:"no-store" });
+    if (!r.ok) throw new Error(r.status);
+    const lm = r.headers.get("Last-Modified");
+    state.mtime[which] = lm ? new Date(lm) : null;
+    state[which] = which === "src" ? await r.text() : await r.json();
+  } catch { if (!state.manual[which]) { state[which] = null; state.mtime[which] = null; } }
+}
+async function loadAll() {
+  if (location.protocol !== "file:") {
+    await Promise.all(["src", "raw", "typed"].map(w => !state.manual[w] && load(w)));
+  }
+  render();
+}
+for (const which of ["src", "raw", "typed"]) {
+  $({ src:"fsrc", raw:"fraw", typed:"ftyped" }[which]).addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f) return;
+    state[which] = which === "src" ? await f.text() : JSON.parse(await f.text());
+    state.mtime[which] = new Date(f.lastModified);
+    state.manual[which] = true;
+    render();
+  });
+}
+
+/* ---------- análise ---------- */
+const isObj = v => v && typeof v === "object" && !Array.isArray(v);
+const isScalar = v => v === null || typeof v !== "object";
+const tagOf = v => isObj(v) && Object.keys(v).length === 1 && typeof Object.values(v)[0] === "object" ? Object.keys(v)[0] : null;
+const isFun = v => isObj(v) && "name" in v && "body" in v && "ret" in v;
+
+function tagSet(root, out = new Map()) {
+  if (Array.isArray(root)) root.forEach(x => tagSet(x, out));
+  else if (isObj(root)) {
+    const t = tagOf(root); if (t) out.set(t, (out.get(t) || 0) + 1);
+    Object.values(root).forEach(x => tagSet(x, out));
+  }
+  return out;
+}
+const total = m => [...m.values()].reduce((a, b) => a + b, 0);
+
+/* ---------- árvore ---------- */
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function span(cls, text) { return el("span", cls, text); }
+const TYPE_KEYS = new Set(["ty", "t", "ret"]);
+
+function typeChip(v) {
+  if (isObj(v) && Object.keys(v).length === 0) return span("ty none", "sem tipo");
+  return span("ty", typeText(v));
+}
+function typeText(v) {
+  if (isScalar(v)) return String(v);
+  if (Array.isArray(v)) return "[" + v.map(typeText).join(", ") + "]";
+  const k = Object.keys(v);
+  return k.length === 1 ? k[0] + "<" + typeText(v[k[0]]) + ">" : JSON.stringify(v);
+}
+function inlineScalar(k, v) {
+  const r = el("span");
+  r.append(span("k", k + "="));
+  r.append(TYPE_KEYS.has(k) ? typeChip(v) : span("val", JSON.stringify(v)));
+  return r;
+}
+const flat = v => isObj(v) && Object.values(v).every(isScalar);
+
+function build(v, key, opts) {
+  if (isScalar(v)) { const r = el("div", "row"); if (key) r.append(span("k", key + ":")); r.append(TYPE_KEYS.has(key) ? typeChip(v) : span("val", JSON.stringify(v))); return r; }
+  if (TYPE_KEYS.has(key)) { const r = el("div", "row"); r.append(span("k", key + ":"), typeChip(v)); return r; }
+  if (Array.isArray(v)) return group(key ? key + " " : "", v.length ? `[${v.length}]` : "[ ]", null, v.map((x, i) => build(x, String(i), opts)), v.length < 2);
+
+  if (isFun(v)) {
+    const sig = v.params.map(p => Array.isArray(p) ? `${typeText(p[0])} ${p[1]}` : JSON.stringify(p)).join(", ");
+    const head = [span("tag", "fun"), span("fn", `${v.name}(${sig})`), span("k", "→"), typeChip(v.ret)];
+    return group("", null, head, [build(v.body, "body", opts)], false);
+  }
+  const t = tagOf(v);
+  if (t) {
+    const inner = v[t];
+    const isNew = opts.novel && !opts.novel.has(t);
+    const tagEl = span("tag" + (isNew ? " new" : ""), t);
+    if (flat(inner)) {                                     // folha: tudo numa linha
+      const r = el("div", "row"); if (key) r.append(span("k", key + ":"));
+      r.append(tagEl); Object.entries(inner).forEach(([k, x]) => r.append(inlineScalar(k, x))); return r;
+    }
+    const head = key ? [span("k", key + ":"), tagEl] : [tagEl];
+    const kids = Array.isArray(inner) ? inner.map((x, i) => build(x, String(i), opts)) : Object.entries(inner).map(([k, x]) => build(x, k, opts));
+    return group("", null, head, kids, false);
+  }
+  const kids = Object.entries(v).map(([k, x]) => build(x, k, opts));
+  return group(key ? key + ": " : "", "{ }", null, kids, false);
+}
+function group(prefix, label, headNodes, kids, closed) {
+  const d = el("details"); d.open = !closed;
+  const s = el("summary"); s.className = "row";
+  if (headNodes) s.append(...headNodes); else { if (prefix) s.append(span("k", prefix)); if (label) s.append(span("k", label)); }
+  d.append(s);
+  const box = el("div", "n"); kids.forEach(k => box.append(k)); d.append(box);
+  return d;
+}
+
+/* ---------- render ---------- */
+function fillPane(id, data, opts, placeholder) {
+  const box = $(id); box.replaceChildren();
+  if (data == null) { box.append(el("div", "empty", placeholder)); return; }
+  if (state.mode === "json") { box.append(el("pre", "", JSON.stringify(data, null, 2))); return; }
+  const arr = Array.isArray(data) ? data : [data];
+  arr.forEach(x => box.append(build(x, null, opts)));
+}
+const KW = new Set(["if","else","while","for","return","void","int","float","bool","true","false","print"]);
+const TYPES = new Set(["void","int","float","bool"]);
+function fillSource(text) {
+  const box = $("src"); box.replaceChildren();
+  if (text == null) { box.append(el("div", "empty", "source.minic ainda não gerado. Rode o compilador de novo (ele grava o fonte em Outputs/).")); return; }
+  const lines = text.replace(/\n$/, "").split("\n");
+  const grid = el("div", "code"), nums = el("pre", "ln"), code = el("pre");
+  nums.textContent = lines.map((_, i) => i + 1).join("\n");
+  lines.forEach((ln, i) => {
+    for (const m of ln.matchAll(/(\/\/.*$)|([A-Za-z_]\w*)|(\d+(?:\.\d+)?)|(\s+|.)/g)) {
+      const t = m[0];
+      if (m[1]) code.append(span("cm", t));
+      else if (m[2] && TYPES.has(t)) code.append(span("tp kw", t));
+      else if (m[2] && KW.has(t)) code.append(span("kw", t));
+      else if (m[3]) code.append(span("num", t));
+      else code.append(document.createTextNode(t));
+    }
+    if (i < lines.length - 1) code.append("\n");
+  });
+  grid.append(nums, code); box.append(grid);
+}
+const fmt = d => d ? d.toLocaleTimeString("pt-BR") : "";
+
+function render() {
+  const rawTags = state.raw ? tagSet(state.raw) : new Map();
+  const typedTags = state.typed ? tagSet(state.typed) : new Map();
+  const ms = state.mtime.src, mr = state.mtime.raw, mt = state.mtime.typed;
+  const rawStale = !!(ms && mr && mr < ms - 2000);          // fonte novo, raw velho: erro sintático
+  const stale = rawStale || !!(mr && mt && mt < mr - 2000); // árvores de execuções diferentes: comparar não faz sentido   // árvores de execuções diferentes: comparar não faz sentido
+  const novel = stale ? new Set() : new Set([...typedTags.keys()].filter(k => !rawTags.has(k)));
+
+  fillSource(state.src);
+  $("t-src").textContent = fmt(state.mtime.src);
+  fillPane("raw", state.raw, {}, "ast_raw.json ainda não gerado. Rode: lake exe minic-compiler programa.minic");
+  fillPane("typed", state.typed, { novel: stale ? null : rawTags }, "ast_typed.json não gerado: o verificador de tipos não rodou (erro sintático) ou recusou o programa.");
+  $("t-raw").textContent = fmt(state.mtime.raw);
+  $("t-typed").textContent = fmt(state.mtime.typed);
+
+  const notes = [];
+  if (location.protocol === "file:" && !state.manual.src && !state.manual.raw && !state.manual.typed)
+    notes.push(["", "Aberto como arquivo local: o navegador não deixa ler os JSON sozinho. Use os botões acima, ou sirva a pasta: python3 -m http.server -d Outputs"]);
+  if (rawStale)
+    notes.push(["warn", `ast_raw.json (${fmt(mr)}) é mais antigo que o fonte (${fmt(ms)}). O parser não gerou saída nesta execução (erro sintático), então as duas árvores são de um programa anterior.`]);
+  else if (stale)
+    notes.push(["warn", `ast_typed.json é mais antigo que ast_raw.json (${fmt(mt)} < ${fmt(mr)}). O verificador de tipos não gerou saída nesta execução, então a árvore tipada à direita é de um programa anterior.`]);
+  if (state.raw && !state.typed && location.protocol !== "file:")
+    notes.push(["", "Só a árvore crua existe: o programa passou no parser mas não foi tipado."]);
+  const st = $("status"); st.replaceChildren();
+  notes.forEach(([c, t]) => st.append(el("div", "note " + c, t)));
+
+  const sm = $("summary"); sm.replaceChildren();
+  const stat = (n, label, cls) => { const d = el("div", "stat " + (cls || "")); d.append(el("b", "", String(n)), document.createTextNode(label)); sm.append(d); };
+  if (state.raw) {
+    stat(Array.isArray(state.raw) ? state.raw.length : 1, "função(ões)");
+    stat(total(rawTags), "nós (raw)");
+  }
+  if (state.typed) {
+    stat(total(typedTags), "nós (typed)");
+    for (const k of novel) stat(typedTags.get(k), `nó(s) “${k}” inserido(s)`, "new");
+  }
+}
+
+/* ---------- controles ---------- */
+let timer = null;
+function setAuto(on) { clearInterval(timer); timer = on ? setInterval(loadAll, 2000) : null; $("auto").classList.toggle("on", on); }
+$("reload").onclick = () => { state.manual = { src:false, raw:false, typed:false }; loadAll(); };
+$("auto").onclick = () => setAuto(!timer);
+$("mode").onclick = () => { state.mode = state.mode === "tree" ? "json" : "tree"; $("mode").textContent = state.mode === "tree" ? "Ver JSON" : "Ver árvore"; render(); };
+setAuto(location.protocol !== "file:");
+loadAll();
+</script>
+</body>
+</html>

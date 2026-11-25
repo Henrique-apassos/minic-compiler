@@ -20,6 +20,10 @@ def main (args : List String) : IO Unit := do
 
   let filePath := args.head!
   let src ← IO.FS.readFile filePath
+  -- Cópia do fonte ao lado dos JSON: o `Outputs/viewer.html` mostra programa e ASTs lado a lado.
+  -- Gravada antes do parse para o fonte aparecer mesmo quando há erro sintático.
+  IO.FS.createDirAll "Outputs"
+  IO.FS.writeFile "Outputs/source.minic" src
 
   match GeneratedParser.parseProgram src with
   | .error err =>
