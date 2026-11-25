@@ -39,10 +39,3 @@ def deltaNFA (t : List Transition) (q : State) (sym : Symbol) : List State :=
       if q0 == q then qf :: deltaNFA ts q sym else deltaNFA ts q sym
   | ((q0, s), qf) :: ts =>
       if q0 == q && s == sym then qf :: deltaNFA ts q sym else deltaNFA ts q sym
-
--- ══════════════════════════════════════════════
--- TESTES
--- ══════════════════════════════════════════════
-
-#eval deltaNFA [((0, "a"), 1), ((1, "b"), 2)] 0 "a"  -- [1]
-#eval deltaNFA [((0, "ε"), 1), ((1, "b"), 2)] 0 "x"  -- [1]

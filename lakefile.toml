@@ -21,6 +21,11 @@ roots = [
 [[lean_lib]]
 name = "Parser"
 
+# Exemplos com `#eval` dos autômatos. Fora de `defaultTargets`: só roda com `lake build Exemplos`.
+[[lean_lib]]
+name = "Exemplos"
+roots = ["Exemplos.Automata"]
+
 [[lean_lib]]
 name = "GeneratedParser"
 

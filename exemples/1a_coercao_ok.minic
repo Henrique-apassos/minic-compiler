@@ -1,0 +1,8 @@
+float media(int a, int b) {
+  float soma = a + b;
+  return soma / 2;
+}
+void main() {
+  float x = 1;
+  float m = media(3, 4);
+}

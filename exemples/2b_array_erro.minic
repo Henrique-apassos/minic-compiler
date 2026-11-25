@@ -1,0 +1,5 @@
+void main() {
+  int[] v = [1, 2];
+  float[] w = v;
+  w[0] = 2.5;
+}

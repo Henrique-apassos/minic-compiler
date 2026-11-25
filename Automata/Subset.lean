@@ -129,25 +129,3 @@ def constructDFA (raw : RawNFA) (alphabet : List Symbol) : RawDFA :=
     q0       := 0,
     f        := dfaAcceptStates
   }
-
-
--- ══════════════════════════════════════════════
--- TESTE
--- ══════════════════════════════════════════════
-
--- Definição da Regex: a(b|c)*
-def testeRegex : Regex :=
-  Regex.concat
-    (Regex.literal "a")
-    (Regex.star
-      (Regex.union
-        (Regex.literal "b")
-        (Regex.literal "c")
-      )
-    )
-
--- 1. Gera o NFA
-def myNFA := regexToRawNFA testeRegex
-
--- 2. Converte para DFA passando o alfabeto explícito
-#eval constructDFA myNFA ["a", "b", "c"]

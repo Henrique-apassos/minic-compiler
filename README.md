@@ -228,6 +228,16 @@ lake test
 
 Roda `Tests/Main.lean` (exe `parserTests`), que reúne as verificações de `Tests.lean` (gerador, motor e AST), os testes do scanner (`Tests/Scanner.lean`), os grupos portados de `MiniC/tests/parser.rs` e `program.rs`, com os mesmos nomes, e os do verificador de tipos (`Tests/TypeCheck.lean`); os fixtures `.minic` estão em `Tests/fixtures/`. A saída termina com o total (`N testes: X passaram, Y falharam, Z pendentes`) e o código de saída é 1 se algo falhar. Pendente (`Test.pend`) = lacuna conhecida do compilador: não falha a execução, mas se passar o teste falha pedindo para remover a marca. Nenhum teste está pendente hoje. Detalhes em `docs/DECISOES.md` (#37 e #59).
 
+### Exemplos dos autômatos
+
+`Exemplos/Automata.lean` reúne `#eval` de NFA, DFA, Thompson, subconjuntos e simulação. Não faz parte do build padrão, para o `lake build` ficar sem logs. Para ver as saídas:
+
+```bash
+lake lean Exemplos/Automata.lean
+```
+
+`lake build Exemplos` também funciona, mas com o cache do Lake só imprime quando o arquivo mudou.
+
 ## Limitações atuais e próximos passos
 
 - Escapes em string: só `\"`, `\\`, `\n` e `\t`; qualquer outro (`\u`, `\x`) é erro léxico (decisão D4 em aberto).

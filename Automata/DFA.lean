@@ -39,11 +39,3 @@ def deltaDFA (t : List Transition) (q : State) (sym : Symbol) : State :=
   | [] => q
   | ((q0, s), qf) :: ts =>
       if q0 == q && s == sym then qf else deltaDFA ts q sym
-
--- ══════════════════════════════════════════════
--- TESTES
--- ══════════════════════════════════════════════
-
-#eval deltaDFA [((0, "a"), 1), ((1, "b"), 2)] 0 "a"  -- 1
-#eval deltaDFA [((0, "a"), 1), ((1, "b"), 2)] 1 "b"  -- 2
-#eval deltaDFA [((0, "a"), 1), ((1, "b"), 2)] 0 "b"  -- 0 (sem transição → estado atual)

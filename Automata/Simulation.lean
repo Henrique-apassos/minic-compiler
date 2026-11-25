@@ -132,13 +132,3 @@ def stopInAcceptanceStateDFA (s : SimulationDFA) : Prop :=
 
 def stopInAcceptanceStateNFA (s : SimulationNFA) : Prop :=
   nfaAccepts s.mNFA s.wfCollectionNFA
-
--- ══════════════════════════════════════════════
--- TESTES RÁPIDOS
--- ══════════════════════════════════════════════
-
-#eval recordPosedgeClock [false, true, false, true, false, true] 0
--- esperado: [1, 3, 5]
-
-#eval dropHeads [("A", [true, false]), ("B", [false, true])]
--- esperado: [("A", [false]), ("B", [true])]
